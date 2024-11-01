@@ -1,6 +1,6 @@
 ! Copyright (C) 2024 Your name.
-! See https://factorcode.org/license.txt for BSD license.
-USING: kernel generic parser assocs literals namespaces arrays lexer prettyprint continuations sequences.deep prettyprint.custom prettyprint.sections  words classes.predicate quotations accessors vectors classes.parser math sequences combinators combinators.smart unicode strings io io.streams.string math.parser strings.parser ;
+! See https://factorcode.org/license.txt for BSD license
+USING: kernel generic parser assocs literals namespaces arrays lexer prettyprint classes.tuple colors hashtables continuations sequences.deep prettyprint.custom prettyprint.sections  words classes.predicate quotations accessors vectors classes.parser math sequences combinators combinators.smart unicode strings io io.styles io.streams.string math.parser strings.parser ;
 IN: rix
 DEFER: lex-val
 DEFER: lex-until-newline
@@ -171,8 +171,12 @@ INSTANCE: rix-sequence sequence
 
 : eval-set-global ( evaluator symbol value -- evaluator ) swap pick global-namespace>> env-set drop ;
 
+: not-reached-target? ( target evaluator -- ?  ) [ results>> length > ] 1check [ can-cont? [ "Expected expression but got nothing" eval-error f ] unless* ] [ drop f ] if ;
+
 : eval-to-target ( evaluator target -- evaluator )
-    over results>> length + swap [ 2dup [ can-cont? ] [ swapd results>> length <= not ] bi and ] [ eval-until-one push-results ] while nip ;
+    over results>> length + swap
+    [ 2dup not-reached-target? ]
+    [ eval-until-one push-results ] while nip ;
 
 : with-env ( evaluator quot -- evaluator ) [ evaluator-<env> ] dip call evaluator-parent ; inline
 
@@ -257,6 +261,10 @@ INSTANCE: rix-sequence sequence
         { SYM: quot $[ { SYM: val } [ dup "val" get-value* "quote" <val> ] <func> "quotes a value" desc ] }
         { SYM: uquot $[ { SYM: val } [ dup "val" get-value* "unquote" <val> ] <func> "makes a value an unquote" desc ] }
         { SYM: suquot $[ { SYM: val } [ dup "val" get-value* "splice-unquote" <val> ] <func> "makes a value a splice-unquote" desc ] }
+        { SYM: err $[ { SYM: str } [ dup "str" get-value \ eval-error boa "error" <val> push-token f ]  <func> "throws an error with the given string as a message" desc ] }
+        { SYM: new-err $[ { SYM: str } [ dup "str" get-value \ eval-error boa "error" <val> ]  <func> "returns an error with the given string as a message" desc ]  }
+        { SYM: try $[ { SYM: list SYM: catch } [ dup [ "catch" get-value* ] [ "list" get-value* ] bi [ nip eval-tokens ] [ "error" <val> "quote" <val> 3array >vector eval-tokens ] recover ] <func>
+                      "evaluates the list. if there's an error, calls the function with the list and the error (in that order). errors automatically throw themselves when evaluated, so handle them carefully" desc ] }
     } clone env boa clone
     ;
 
@@ -281,30 +289,63 @@ M: rix-value pprint-rix-value dup ".prn*" get-rix-impl [ eval-rix-fun drop ] [ v
 
 : eval-str-to-str ( str -- str ) eval-str [ pprint-rix-value ] with-string-writer  ;
 
-: repl ( -- ) [ "Welcome to the rix repl! (" write rix-version ")" append print "Press Control+D to quit" print V{ } clone fresh-env <evaluator> [ "rix> " write readln [ lex-str >>tokens eval-all dup results>> dup empty?
-                                                                                                                   not [ last pprint-rix-value "\n" write t ] [ drop f ] if ] when*% ] loop drop ]  [ clear-genv ] finally ;
+: repl ( -- )
+    [
+        "Welcome to the rix repl! (" write rix-version ")" append print
+        "Press Control+D to quit" print V{ } clone fresh-env <evaluator>
+        [
+            "rix> " write readln
+            [
+                [ lex-str >>tokens eval-all dup results>> dup empty? not [ last pprint-rix-value "\n" write t ] [ drop f ] if ] when*% ] [ [ "error" <val> pprint-rix-value "\n" write ] with-string-writer COLOR: red
+                                                                                                                                           foreground associate format ] recover
+        ] loop drop
+    ]  [ clear-genv ] finally ;
 
-
+! 1798
 RIX-TYPE: rix-number ;
+
+! "Hello, World"
 RIX-TYPE: rix-string ;
+
+! err "example error"
+RIX-TYPE: rix-error value>> throw ;
+M: rix-error pprint-rix-value value>> "ERROR " write "msg" swap [ ?offset-of-slot ] 1check [ msg>> ] when pprint ;
+
+! 'something
 RIX-TYPE: rix-quote unquote-scan value>> ;
 M: rix-quote pprint-rix-value "'" write value>> pprint-rix-value ;
+
+! [ things 1 2 4 5 ]
 RIX-TYPE: rix-list ;
 M: rix-list pprint-rix-value "[" write value>> dup empty? not [ unclip pprint-rix-value ] when [ " " write pprint-rix-value ] each "]" write  ;
 INSTANCE: rix-list rix-sequence
+
+! ;symbol
 RIX-TYPE: rix-resolve value>> "symbol" <val> over current-namespace>> [ env-get ] curry ?transmute [ value>> "unknown symbol: " prepend eval-error ] unless ;
 M: rix-resolve pprint-rix-value ";" write value>> write ;
+
+! (evaluated-immediatly 1 1)
 RIX-TYPE: rix-parens value>> push-tokens 1 eval-to-target pop-results ;
 M: rix-parens pprint-rix-value "(" write value>> dup empty? not [ unclip pprint-rix-value ] when [ " " write pprint-rix-value ] each ")" write ;
 INSTANCE: rix-parens rix-sequence
+
+! symbol
 RIX-TYPE: rix-symbol over current-namespace>> [ env-get ] curry ?transmute [ value>> "unknown symbol: " prepend eval-error ] unless push-token f ;
 M: rix-symbol pprint-rix-value value>> write ;
+
+! tru
 RIX-TYPE: rix-bool ;
 M: rix-bool pprint-rix-value value>> "tru" "fal" ? write ;
+
+! nil
 RIX-TYPE: rix-nil ;
 M: rix-nil pprint-rix-value drop "nil" write ;
+
+! foo: bar
 RIX-TYPE: rix-dec over [ value>> [ symbol>> "symbol" <val> ] [ expr>> ] bi ] dip current-namespace>> eval-all-tokens results>> dup length 0 > [ last ] [ drop f ] if rot [ [ swapd env-set ] 2with change-current-namespace ] keepd ;
 M: rix-dec pprint-rix-value value>> [ symbol>> write ":" write ] [ expr>> [ " " write pprint-rix-value ] each ] bi  ;
+
+! fn [x y] [+ x y]
 RIX-TYPE: rix-func
   swap [ swap
   [ value>> param-names>> length [ eval-to-target ] keep [ cut* swap ] curry change-results ] keep
@@ -313,6 +354,8 @@ RIX-TYPE: rix-func
   ] with-env
   swap ;
 M: rix-func pprint-rix-value value>> "fn " write param-names>> "list" <val> pprint-rix-value ;
+
+! clo [x y] [+ x y]
 RIX-TYPE: rix-closure
   [ value>> param-names>> length [ eval-to-target ] keep [ cut* swap ] curry change-results ] keep
   dupd [ current-namespace>> ] 2dip
@@ -320,14 +363,22 @@ RIX-TYPE: rix-closure
   spin >>current-namespace swap
   ;
 M: rix-closure pprint-rix-value value>> "clo " write param-names>> "list" <val> pprint-rix-value ;
+
+! mac [x y] [+ x y]
 RIX-TYPE: rix-macro
   swap [ swap
   [ [ value>> param-names>> length cut ] curry change-tokens ] keep
   [ value>> param-names>> [ tuck current-namespace>> ] dip swap [ rot env-set ] 2reduce >>current-namespace ] keep value>> quot>> call( evaluator -- evaluator ) ] with-env f ;
 M: rix-macro pprint-rix-value value>> "mac " write param-names>> "list" <val> pprint-rix-value ;
+
+! ,something
 RIX-TYPE: rix-unquote ;
 M: rix-unquote pprint-rix-value "," write value>> pprint-rix-value ;
+
+! @something
 RIX-TYPE: rix-splice-unquote ;
 M: rix-splice-unquote pprint-rix-value "@" write value>> pprint-rix-value ;
+
+! genr foo
 RIX-TYPE: rix-generic [ dup [ tokens>> clone ] [ results>> clone ] [ eval-until-one nip ] tri [ [ >>tokens ] [ >>results ] bi* ] dip type>> ] dip value>> "." prepend append "symbol" <val> push-token f ;
 M: rix-generic pprint-rix-value "genr '" write value>> write ;
