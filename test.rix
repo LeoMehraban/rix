@@ -1,0 +1,47 @@
+
+# parser should parse:
+# comments (syntax #...)
+# symbols
+# numbers
+# strings
+# lists (syntax [...])
+# declarations (syntax symbol:)
+# quotes (syntax '...)
+# unquote (syntax ,...)
+# splice-unquote (syntax @...)
+# priority parens (syntax (...))
+
+foo: fn [x y] [+ x y]
+bar: fn [x] [prn x]
+baz: fn [x y] [if (= y 2) [bar x] [prn "wrong y"]]
+foo2: fn [a] ['[,(+ a 3) 8 9]]
+foo2 4
+# [7 8 9]
+
+
+list.+: fn [x y] '[@x @y]
++ [5 7 8] [99 9 9]
+# [5 7 8 99 9 9]
+
+new-person: fn [name age] [typ '[set 'name ,name set 'age ,age] "person"]
+genr 'get-name
+person.get-name: fn [person] [scop person [name]]
+
+jeff: new-person "jeff" 19
+prn get-name jeff
+# jeff
+
+first: fn [list] [nth list 0]
+second: fn [list] [nth list 1]
+rest: fn [list] [second decons list]
+reduce*: fn [prev list fun]
+	 [
+		if (< len list 0)
+		[
+			reduce* (fun prev first list) # the new prev is the result of calling the input function on the original prev and the first element of the list
+			(rest list) # the new list is the rest of the list
+			;fun # the ; syntax gets the value of something from the current namespace, but doesn't evaluate it afterwards. this allows for functions to be gotten from the namespace without being called
+		]
+		[prev] # return the final result
+	 ]
+reduce: fn [list fun] [reduce* (first list) (rest list) ;fun]
