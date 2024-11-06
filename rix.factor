@@ -255,8 +255,6 @@ INSTANCE: rix-sequence sequence
         { SYM: not $[ { SYM: x } [ dup "x" get-value not "bool" <val> ] <builtin> "preforms 'not' on a bool" desc ] }
         { SYM: inl $[ { SYM: params SYM: body } [ make-inl push-token ] <builtin-macro> "creates a function with params and a body whose results may depend on the surrounding enviroment" desc ] } 
         { SYM: fn $[ { SYM: params SYM: body } [ make-func push-token ] <builtin-macro> "creates a function with params and a body" desc  ] }
-        { SYM: ^ $[ { } [ t "scopeup" <val> push-token ] <builtin-macro> "pushes a 'scopeup' token to the token list. this token, when evaluated, will set the enviorment to the parent of the current enviorment" desc ]  }
-        { SYM: | $[ { } [ t "scopedown" <val> push-token ] <builtin-macro> "pushes a 'scopedown' token to the token list. this token, when evaluated, will create a new enviorment with the current enviorment as its parent" desc ]  }
         { SYM: mac $[ { SYM: params SYM: body } ! 
                       [ make-macro push-token ] <builtin-macro>
                       "creates a function with params and a body that returns either a list or a single value that is pushed onto the token array" desc ] }
@@ -342,6 +340,9 @@ TUPLE: module name value ;
 : compress-env ( env -- env ) dup parent>> [ compress-env swap [ bindings>> ] bi@ assoc-union f swap rix-env boa ] when* ;
 : env-set-parent ( env parent -- env ) [ swap [ >>parent ] when* ] curry change-parent ;
 : load-env ( env1 env2 -- env ) compress-env env-set-parent ;
+
+: global-env>markdown ( -- )
+    "| name | signature      | description |\n| --- | ------------------| ------------|" print default-env bindings>> [ [ "| " write [ pprint-rix-value " | " write ] bi@ ] keep description>> write " |" print ] assoc-each  ;
 
 : tpopn ( eval n -- eval toks ) [ 1 - over pop-token nip ] collector [ [ dup 0 <= not ] swap while ] dip nip ;
 
