@@ -128,8 +128,9 @@ TUPLE: evaluator tokens global-namespace to-export current-namespace results ext
 : get-value* ( evaluator string -- value ) "symbol" <val> swap current-namespace>> env-get ;
 : unclip! ( sequence -- rest first ) [ first ] [ 0 swap remove-nth! ] bi swap  ;
 : prepend! ( seq1 seq2 -- seq1 ) [ reverse! ] bi@ [ append! ] keep [ reverse! ] bi@ drop ;
+: prefix! ( seq elt -- seq ) 1array prepend! ;
 : (pop-token) ( eval -- eval token ) [ unclip! swap ] change-tokens swap ;
-: pop-token ( eval -- eval token ) dup tokens>> length 0 > [ (pop-token) ] [ [ unclip! swap ] change-extra-tokens swap ] if ;
+: pop-token ( eval -- eval token ) dup tokens>> length 0 > [ (pop-token) ] [ [ dup pop dup length 0 > [ unclip -rot suffix! ] [ drop dup pop unclip -rot suffix! ] if ] change-extra-tokens swap ] if ;
 : push-token ( eval token -- eval ) [ 1array prepend! ] curry change-tokens ;
 : push-tokens ( eval tokens -- eval ) [ prepend! ] curry change-tokens ;
 : push-results ( eval result -- eval ) [ [ suffix! ] curry change-results ] when* ;
@@ -160,7 +161,7 @@ INSTANCE: rix-sequence sequence
 : eval-next ( evaluator -- evaluator result ) 
     pop-token rix-eval ;
 
-: can-cont? ( evaluator -- ? ) [ tokens>> length ] [ extra-tokens>> length ] bi + 0 >  ;
+: can-cont? ( evaluator -- ? ) [ tokens>> length ] [ extra-tokens>> concat length ] bi + 0 >  ;
 
 : evaluator-<env> ( evaluator -- evaluator ) dup current-namespace>> clone <env> >>current-namespace ;
 
@@ -179,11 +180,15 @@ INSTANCE: rix-sequence sequence
 
 : eval-all ( evaluator -- evaluator ) [ dup tokens>> length 0 > ] [ eval-next push-results ] while ;
 
+: eval-full ( evaluator -- evaluator ) [ dup can-cont? ] [ eval-next push-results ] while  ;
+
 : eval-all-tokens ( tokens env -- evaluator ) <evaluator> eval-all ;
 
+: extra-tokens>tokens ( eval -- eval ) dup extra-tokens>> pop >>tokens ;
+
 : eval-tokens ( evaluator tokens -- evaluator result )
-    over [ tokens>> length ] [ results>> clone ] bi [ [ [ dup tokens>> [ prepend! ] curry change-extra-tokens V{ } clone >>tokens ] dip
-                                                        push-tokens eval-all dup ] dip -rot extra-tokens>> rot cut [ >>tokens ] [ >>extra-tokens ] bi* ] dip [ [ last ] dip ] curry change-results swap ;
+    over results>> clone [ [ dup tokens>> [ suffix! ] curry change-extra-tokens V{ } clone >>tokens ] dip
+                                                        push-tokens eval-all extra-tokens>tokens ] dip [ [ last ] dip ] curry change-results swap ;
 
 : eval-set-global ( evaluator symbol value -- evaluator ) swap pick global-namespace>> env-set drop ;
 
@@ -194,9 +199,14 @@ INSTANCE: rix-sequence sequence
     [ 2dup not-reached-target? ]
     [ eval-until-one push-results ] while nip ;
 
+: target-to-results ( evaluator target -- evaluator results )
+    V{ } clone [ [ length > ] 2check [ pick can-cont? [ "Expected expression but got nothing" eval-error f ] unless* ] when% ]
+    [ [ eval-until-one ] 2dip rot suffix! ] while nip ;
+
 : with-env ( evaluator quot -- evaluator ) [ evaluator-<env> ] dip call evaluator-parent ; inline
 
-: make-macro ( evaluator -- evaluator macro ) dup [ "params" get-value ]  [ "body" get-value* ] bi [ dup sequence? not [ 1vector ] when f "scopeup" <val> suffix eval-tokens drop ] curry <macro> "quote" <val>  ;
+: make-macro ( evaluator -- evaluator macro ) dup [ "params" get-value ]  [ "body" get-value* ] bi [ dup sequence? not [ 1vector ] when f "scopeup" <val> suffix eval-tokens
+                                                                                                     dup sequence? [ push-tokens ]  [ push-token ] if ] curry <macro> "quote" <val>  ;
 
 : make-inl ( evaluator -- evaluator func ) dup [ "params" get-value ]  [ "body" get-value* ] bi [ dup sequence? not [ 1vector ] when f "scopeup" <val> suffix push-tokens f ] curry inl boa "inl" <val> "quote" <val> ;
 
@@ -306,17 +316,14 @@ INSTANCE: rix-sequence sequence
 : get-rix-impl ( val genr -- fun/f ) [ type>> ] dip append "symbol" <val> global-env bindings>> at ;
 : eval-rix-fun ( params fn -- result ) swap 2array >vector global-env <evaluator> eval-all results>> last ;
 
-! TODO: I think that this code will produce wrong outputs when using incl
-! this problem will be annoying to debug for end users, and so at some point soon I should try and fix it
-! edit1: I made some changes and I've yet to make sure that this still applies
 M: rix-value pprint-rix-value dup ".prn*" get-rix-impl [ eval-rix-fun drop ] [ value>> pprint ] if* ;
 
 : map-acc ( x seq quot -- x seq' ) collector [ each ] dip ; inline
 
-: eval-str ( str -- result ) [ lex-str fresh-env <evaluator> eval-all results>> dup empty? [ drop f "nil" <val> ] [ last ] if ] [ clear-genv ] finally ;
+: eval-str ( str -- result ) [ lex-str fresh-env <evaluator> eval-full results>> dup empty? [ drop f "nil" <val> ] [ last ] if ] [ clear-genv ] finally ;
 
 TUPLE: module name value ;
-: include-file ( module-name -- module ) dup find-file-path utf8 file-contents global-env [ lex-str default-env <evaluator> eval-all to-export>> module boa "module" <val> ] dip genv set-global ;
+: include-file ( module-name -- module ) dup find-file-path utf8 file-contents global-env [ lex-str default-env <evaluator> eval-full to-export>> module boa "module" <val> ] dip genv set-global ;
 
 : eval-str-to-str ( str -- str ) eval-str [ pprint-rix-value ] with-string-writer  ;
 
@@ -403,7 +410,7 @@ M: rix-dec pprint-rix-value value>> [ symbol>> write ":" write ] [ expr>> [ " " 
 ! inl [x y] [+ x y]
 RIX-TYPE: rix-inl
   [ evaluator-<env> ] dip
-  [ value>> param-names>> length [ eval-to-target ] keep [ cut* swap ] curry change-results ] keep
+  [ value>> param-names>> length target-to-results swap ] keep
   [ value>> param-names>> [ tuck current-namespace>> ] dip swap [ rot env-set ] 2reduce >>current-namespace ] keep value>> quot>> call( evaluator -- evaluator result/f  )
   ;
 M: rix-inl pprint-rix-value value>> "inl " write param-names>> "list" <val> pprint-rix-value ;
@@ -411,7 +418,7 @@ M: rix-inl pprint-rix-value value>> "inl " write param-names>> "list" <val> ppri
 ! fn [x y] [+ x y]
 ! eval self
 RIX-TYPE: rix-func
-  [ value>> param-names>> length [ eval-to-target ] keep [ cut* swap ] curry change-results ] keep
+  [ value>> param-names>> length target-to-results swap ] keep
   [ value>> env>> [ [ <env> ] dip load-env ] curry change-current-namespace ] keep
   [ value>> param-names>> [ tuck current-namespace>> ] dip swap [ rot env-set ] 2reduce >>current-namespace ] keep
   value>> quot>> call( evaluator -- evaluator result/f )

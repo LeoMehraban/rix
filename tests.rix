@@ -62,7 +62,9 @@ foo4
 assert= potato "meh"
 
 prn "test 16"
-assert= (prnted [try [err "Hello" "goodbye"] fn [_ error] [prn ;error]]) "ERROR Hello"
+assert= (prnted [try [err "Hello" "goodbye"] fn [_ error] [wrt ;error]]) "ERROR \"Hello\""
+
+prn "all tests passed!"
 
 # test:
 # :generics
