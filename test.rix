@@ -19,22 +19,22 @@ foo2 4
 # [7 8 9]
 
 
-list.+: fn [x y] '[@x @y]
-+ [5 7 8] [99 9 9]
+# list.+: fn [x y] '[@x @y]
+# + [5 7 8] [99 9 9]
 # [5 7 8 99 9 9]
 
 new-person: fn [name age] [typ '[set 'name ,name set 'age ,age] "person"]
 genr 'get-name
-person.get-name: fn [person] [scop person [name]]
+person.get-name: fn [person] [scop [name] person]
 
 jeff: new-person "jeff" 19
 prn get-name jeff
 # jeff
 
-first: fn [list] [nth list 0]
-second: fn [list] [nth list 1]
-rest: fn [list] [second decons list]
-reduce*: fn [prev list fun]
+exp first: desc "gets the first element of a list" clo [list] [nth list 0]
+exp second: desc "gets the second element of a list" clo [list] [nth list 1]
+exp rest: desc "gets all of the list apart from the first element" clo [list] [second decons list]
+exp reduce*: desc "recursivally applies 'fun' to 'prev' and the first element of 'list', calling reduce* again with the result of that evaluation as 'prev', and the remainder of the list as 'list'" clo [prev list fun]
 	 [
 		if (< len list 0)
 		[
@@ -44,4 +44,5 @@ reduce*: fn [prev list fun]
 		]
 		[prev] # return the final result
 	 ]
-reduce: fn [list fun] [reduce* (first list) (rest list) ;fun]
+exp reduce: desc "applies the binary operation in 'fun' to elements of 'list', first applying it to the first two elements, then applying the result of that to the next element, and so on"
+    	 clo [list fun] [reduce* (first list) (rest list) ;fun]
