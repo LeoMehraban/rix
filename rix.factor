@@ -320,8 +320,7 @@ M: rix-value pprint-rix-value dup ".prn*" get-rix-impl [ eval-rix-fun drop ] [ v
 
 : eval-str ( str -- result ) [ lex-str fresh-env <evaluator> eval-full results>> dup empty? [ drop f "nil" <val> ] [ last ] if ] [ clear-genv ] finally ;
 
-TUPLE: module name value ;
-: include-file ( module-name -- module ) dup find-file-path utf8 file-contents global-env [ lex-str default-env <evaluator> eval-full to-export>> module boa "module" <val> ] dip genv set-global ;
+: include-file ( module-name -- module ) find-file-path utf8 file-contents global-env [ lex-str default-env <evaluator> eval-full to-export>> "module" <val> ] dip genv set-global ;
 
 : eval-str-to-str ( str -- str ) eval-str [ pprint-rix-value ] with-string-writer  ;
 
@@ -347,12 +346,13 @@ TUPLE: module name value ;
 : tpopn ( eval n -- eval toks ) [ 1 - over pop-token nip ] collector [ [ dup 0 <= not ] swap while ] dip nip ;
 
 ! hello@world
-RIX-TYPE: rix-module-call "TODO: module-call" eval-error ;
+RIX-TYPE: rix-module-call value>> [ module>> over current-namespace>> [ env-get ] curry ?transmute [ value>> "unknown module: " prepend eval-error ] unless value>> ] keep symbol>> swap [ at ] curry ?transmute
+[ value>> "unknown symbol: " prepend eval-error ] unless push-token f ;
 M: rix-module-call pprint-rix-value value>> [ symbol>> value>> write ] [ "@" write module>> value>> write ] bi ;
 
 ! ;hello@world
-RIX-TYPE: rix-module-resolve "TODO: module-resolve" eval-error  ;
-
+RIX-TYPE: rix-module-resolve value>> [ module>> over current-namespace>> [ env-get ] curry ?transmute [ value>> "unknown module: " prepend eval-error ] unless value>> ] keep symbol>> swap [ at ] curry ?transmute
+[ value>> "unknown symbol: " prepend eval-error ] unless ;
 M: rix-module-resolve pprint-rix-value ";" write value>> [ symbol>> value>> write ] [ "@" write module>> value>> write ] bi ;
 
 ! 1798

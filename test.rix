@@ -1,42 +1,9 @@
-
-# parser should parse:
-# comments (syntax #...)
-# symbols
-# numbers
-# strings
-# lists (syntax [...])
-# declarations (syntax symbol:)
-# quotes (syntax '...)
-# unquote (syntax ,...)
-# splice-unquote (syntax @...)
-# priority parens (syntax (...))
-
-foo: fn [x y] [+ x y]
-bar: fn [x] [prn x]
-baz: fn [x y] [if (= y 2) [bar x] [prn "wrong y"]]
-foo2: fn [a] ['[,(+ a 3) 8 9]]
-foo2 4
-# [7 8 9]
-
-
-# list.+: fn [x y] '[@x @y]
-# + [5 7 8] [99 9 9]
-# [5 7 8 99 9 9]
-
-new-person: fn [name age] [typ '[set 'name ,name set 'age ,age] "person"]
-genr 'get-name
-person.get-name: fn [person] [scop [name] person]
-
-jeff: new-person "jeff" 19
-prn get-name jeff
-# jeff
-
-exp first: desc "gets the first element of a list" clo [list] [nth list 0]
-exp second: desc "gets the second element of a list" clo [list] [nth list 1]
-exp rest: desc "gets all of the list apart from the first element" clo [list] [second decons list]
-exp reduce*: desc "recursivally applies 'fun' to 'prev' and the first element of 'list', calling reduce* again with the result of that evaluation as 'prev', and the remainder of the list as 'list'" clo [prev list fun]
+exp first: desc "gets the first element of a list" fn [list] [nth list 0]
+exp second: desc "gets the second element of a list" fn [list] [nth list 1]
+exp rest: desc "gets all of the list apart from the first element" fn [list] [second decons list]
+exp reduce*: desc "recursivally applies 'fun' to 'prev' and the first element of 'list', calling reduce* again with the result of that evaluation as 'prev', and the remainder of the list as 'list'" fn [prev list fun]
 	 [
-		if (< len list 0)
+		if (> len list 0)
 		[
 			reduce* (fun prev first list) # the new prev is the result of calling the input function on the original prev and the first element of the list
 			(rest list) # the new list is the rest of the list
@@ -45,4 +12,4 @@ exp reduce*: desc "recursivally applies 'fun' to 'prev' and the first element of
 		[prev] # return the final result
 	 ]
 exp reduce: desc "applies the binary operation in 'fun' to elements of 'list', first applying it to the first two elements, then applying the result of that to the next element, and so on"
-    	 clo [list fun] [reduce* (first list) (rest list) ;fun]
+    	 fn [list fun] [reduce* (first list) (rest list) ;fun]

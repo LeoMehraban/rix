@@ -64,8 +64,14 @@ assert= potato "meh"
 prn "test 16"
 assert= (prnted [try [err "Hello" "goodbye"] fn [_ error] [wrt ;error]]) "ERROR \"Hello\""
 
-prn "all tests passed!"
+prn "test 17"
+incl test
+assert= (gdesc ;first@test) "gets the first element of a list"
 
+prn "test 18"
+assert= (reduce@test [1 2 3] ;+) 6
+
+prn "all tests passed!"
 # test:
 # :generics
 # :printing
