@@ -231,7 +231,7 @@ INSTANCE: rix-sequence sequence
         GENR: < x y ;
         GENR: > x y ;
         GENR: <= x y ;
-        GENR: => x y ;
+        GENR: >= x y ;
         GENR: prn* val ;
         { SYM: + $[ { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi + "number" <val> ] <builtin> "adds two numbers" desc ] } 
         { SYM: - $[ { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi - "number" <val> ] <builtin> "subtracts two numbers" desc ] }
@@ -240,7 +240,7 @@ INSTANCE: rix-sequence sequence
         { SYM: number.< $[ { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi < "bool" <val> ] <builtin> "compares two numbers" desc ] }
         { SYM: number.> $[ { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi > "bool" <val> ] <builtin> "compares two numbers" desc ] }
         { SYM: number.<= $[ { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi <= "bool" <val> ] <builtin> "compares two numbers" desc ] }
-        { SYM: number.=> $[ { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi >= "bool" <val> ] <builtin> "compares two numbers" desc ] }
+        { SYM: number.>= $[ { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi >= "bool" <val> ] <builtin> "compares two numbers" desc ] }
         { SYM: = $[ { SYM: x SYM: y } [ dup [ "x" get-value* ] [ "y" get-value* ] bi = "bool" <val> ] <builtin> "checks for equality" desc ] }
         { SYM: decons $[ { SYM: list } [ dup "list" get-value unclip swap "list" <val> 2array >vector "list" <val> ] <builtin>
                          "returns a list where the first element is the first element of the input list, and the last element is the remainder of the list" desc ] }

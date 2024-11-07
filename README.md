@@ -67,8 +67,8 @@ try out getting the description of other functions you've seen here so far, to g
 | < | genr '< [x y] | No description |
 | prn* | genr 'prn* [val] | No description |
 | * | fn [x y] | multiplies two numbers |
-| number.=> | fn [x y] | compares two numbers |
-| => | genr '=> [x y] | No description |
+| number.<= | fn [x y] | compares two numbers |
+| <= | genr '<= [x y] | No description |
 | glob | mac [dec] | takes a declaration and evaluates it within the global namespace |
 | scop | fn [code scope] | evaluates the list 'scope' within its own scope, and then calls 'code' within that same scope |
 | map | fn [list func] | applies 'func' to each element in 'list', returning a new list made up of all the return values |
