@@ -3,7 +3,7 @@
 USING: kernel generic parser assocs literals namespaces arrays environment lexer prettyprint splitting classes.tuple colors hashtables continuations sequences.deep prettyprint.custom prettyprint.sections  words classes.predicate quotations accessors vectors classes.parser math sequences combinators combinators.smart unicode strings io io.styles io.files io.encodings.utf8 io.streams.string math.parser strings.parser ;
 IN: rix
 DEFER: lex-val
-DEFER: lex-until-newline
+DEFER: lex-until-semi
 
 ERROR: lexer-error msg ;
 ERROR: eval-error msg ;
@@ -53,12 +53,12 @@ CONSTANT: rix-version "0.01"
 : reset-if ( lexer quot: ( ..a lexer -- ..b lexer parsed? ) -- ..b lexer parsed? ) over clone [ call swap ] dip [ ? ] keepdd ; inline
 : skip-whitespace ( lexer -- lexer ) valid-length? [ [ dup current blank? [ lexer-next ] when% ] loop ] when ;
 : skip-non-newline-whitespace ( lexer -- lexer ) valid-length? [ [ dup current [ blank? ] [ CHAR: \n = not ] bi and [ lexer-next ] when% ] loop ] when ;
-: valid-char? ( char -- ? ) [ { [ CHAR: ( eq? ] [ CHAR: ) eq? ] [ CHAR: [ eq? ] [ CHAR: ] eq? ] [ CHAR: ; eq? ] [ CHAR: @ eq? ]  } cleave ] output>array [  ] any? not ;
+: valid-char? ( char -- ? ) [ { [ CHAR: ( eq? ] [ CHAR: ) eq? ] [ CHAR: [ eq? ] [ CHAR: ] eq? ] [ CHAR: ; eq? ] [ CHAR: @ eq? ] [ CHAR: $ eq? ] } cleave ] output>array [  ] any? not ;
 : lex-word ( lexer -- lexer word/f ) t [ [ [ dup current [ valid-char? ] [ blank? not ] bi and ] when% ] [ ?lexer-next [ writech ] dip ] while ] with-string-writer dup empty? [ drop f ] when ;
 : lex-number ( lexer -- lexer number/f ) [ lex-word [ dec> [ "number" <val> ] when*% ] when*% ] reset-if ;
 : lex-module-call ( lexer -- lexer module-call/f ) [ lex-word [ swap CHAR: @ match-and-advance [ lex-word [ swapd [ "symbol" <val> ] bi@ module-call boa "module-call" <val> ] [ nip f ] if* ] [ nip f ] if ] when*% ] reset-if ;
-: lex-resolve ( lexer -- lexer resolve/f ) CHAR: ; match-and-advance [ [ lex-module-call [ value>> "module-resolve" <val> ]  [ lex-word [ "resolve" <val> ] when*% ] if* ] reset-if ] when%  ;
-: lex-dec ( lexer -- lexer dec/f ) [ lex-word [ unclip-last CHAR: : = [ swap lex-until-newline swapd dec boa "dec" <val> ] dwhen% ] when*% ] reset-if ;
+: lex-resolve ( lexer -- lexer resolve/f ) CHAR: $ match-and-advance [ [ lex-module-call [ value>> "module-resolve" <val> ]  [ lex-word [ "resolve" <val> ] when*% ] if* ] reset-if ] when%  ;
+: lex-dec ( lexer -- lexer dec/f ) [ lex-word [ unclip-last CHAR: : = [ swap lex-until-semi swapd dec boa "dec" <val> ] dwhen% ] when*% ] reset-if ;
 : lex-list ( lexer -- lexer list/f ) 91 match-and-advance [ V{  } clone swap [ 93 match-and-advance not ] [ lex-val swapd suffix! swap ] while swap "list" <val> ] when% ;
 : lex-symbol ( lexer -- lexer symbol/f ) lex-word [ dup [ "tru" = ] [ "fal" = ] bi or [ "tru" = "bool" <val> ]  [ dup "nil" = [ drop f "nil" <val> ] [ "symbol" <val> ] if ] if ] when*% ;
 : lex-quote ( lexer -- lexer quote/f ) CHAR: ' match-and-advance [ lex-val "quote" <val> ] when% ;
@@ -93,7 +93,7 @@ CONSTANT: rix-version "0.01"
     [ skip-useless ] dip
     [ "Invalid expression" lexer-error ] unless*
  ;
-: lex-until-newline ( lexer -- lexer expr ) 
+: lex-until-semi ( lexer -- lexer expr ) 
     V{ } clone swap [
         skip-useless
         lex-quote
@@ -107,10 +107,10 @@ CONSTANT: rix-version "0.01"
         [ lex-resolve ] unless*
         [ lex-parens ] unless*
         [ lex-symbol ] unless*
-        [ skip-non-newline-whitespace ] dip
+        [ skip-useless ] dip
         [ valid-length? [ dup current CHAR: ; = not ] [ t ] if [ "Invalid expression" lexer-error ] when f ] unless*
         [ swapd suffix! swap ] when*
-        dup valid-length? not [ [ CHAR: \n match-and-advance nip ] [ CHAR: ; match-and-advance nip ] bi or ] dip or not
+        dup valid-length? not [ CHAR: ; match-and-advance nip ] dip or not
     ] loop
     swap
  ;
@@ -258,6 +258,9 @@ INSTANCE: rix-sequence sequence
         { SYM: mac $[ { SYM: params SYM: body } ! 
                       [ make-macro push-token ] <builtin-macro>
                       "creates a function with params and a body that returns either a list or a single value that is pushed onto the token array" desc ] }
+        { SYM: typ? $[ { SYM: type SYM: val } [ dup [ "type" get-value ] [ "val" get-value* ] bi type>> = "bool" <val> ] <builtin> "tests if a value is of a certain type" desc ] }
+        { SYM: imps? $[ { SYM: gen SYM: val } [ dup [ "gen" get-value name>> ] [ "val" get-value* ] bi type>> "." append prepend over current-namespace>> env-get [ t ] when% "bool" <val> ]
+                        <builtin> "tests if the type of this value implements a generic" desc ] }
         { SYM: tpop $[ { } [ pop-token ] <builtin> "pops from the tokenstack. should mainly be used with macros, as using with functions or closures may provide unexpected results" desc ] }
         { SYM: tpush $[ { SYM: val } [ dup "val" get-value* push-token f ] <builtin> "pushes to the tokenstack" desc ] }
         { SYM: tapp $[ { SYM: val } [ dup "val" get-value* push-tokens f ] <builtin> "concatinates a list onto the tokenstack" desc ] }
@@ -270,7 +273,7 @@ INSTANCE: rix-sequence sequence
         { SYM: incl $[ { SYM: name } [ dup "name" get-value [ include-file ] keep "symbol" <val> swap eval-set-global ] <builtin-macro> "includes the module specified by 'name'" desc ] }
         { SYM: if $[ { SYM: cond SYM: body1 SYM: body2 }
                      [ dup [ "cond" get-value ] [ "body1" get-value* ] [ "body2" get-value* ] tri ? dup type>> "list" = [ value>> push-tokens f ] when ] <builtin>
-                    "based on the boolean cond, picks either body1 or body2 and evaluates it" desc ] } 
+                     "based on the boolean cond, picks either body1 or body2 and evaluates it" desc ] }
         { SYM: ifdo $[ { SYM: cond SYM: body }
                        [ dup [ "body" get-value* ] [ "cond" get-value ] bi [ dup type>> "list" = [ value>> push-tokens ] [ push-token ] if f ] [ drop f "nil" <val> ] if ] <builtin>
                        "if the boolean cond is true, evaluates the body" desc ] }
@@ -329,7 +332,7 @@ M: rix-value pprint-rix-value dup ".prn*" get-rix-impl [ eval-rix-fun drop ] [ v
         "Welcome to the rix repl! (" write rix-version ")" append print
         "Press Control+D to quit" print V{ } clone fresh-env <evaluator>
         [
-            "rix> " write readln
+            "rix> " write flush readln
             [
                 [ lex-str >>tokens eval-all dup results>> dup empty? not [ last pprint-rix-value "\n" write t ] [ drop t ] if ] when*% ] [ [ "error" <val> pprint-rix-value "\n" write ] with-string-writer COLOR: red
                                                                                                                                            foreground associate format ] recover
@@ -350,10 +353,10 @@ RIX-TYPE: rix-module-call value>> [ module>> over current-namespace>> [ env-get 
 [ value>> "unknown symbol: " prepend eval-error ] unless push-token f ;
 M: rix-module-call pprint-rix-value value>> [ symbol>> value>> write ] [ "@" write module>> value>> write ] bi ;
 
-! ;hello@world
+! $hello@world
 RIX-TYPE: rix-module-resolve value>> [ module>> over current-namespace>> [ env-get ] curry ?transmute [ value>> "unknown module: " prepend eval-error ] unless value>> ] keep symbol>> swap [ at ] curry ?transmute
 [ value>> "unknown symbol: " prepend eval-error ] unless ;
-M: rix-module-resolve pprint-rix-value ";" write value>> [ symbol>> value>> write ] [ "@" write module>> value>> write ] bi ;
+M: rix-module-resolve pprint-rix-value "$" write value>> [ symbol>> value>> write ] [ "@" write module>> value>> write ] bi ;
 
 ! 1798
 RIX-TYPE: rix-number ;
@@ -383,9 +386,9 @@ RIX-TYPE: rix-list ;
 M: rix-list pprint-rix-value "[" write value>> dup empty? not [ unclip pprint-rix-value ] when [ " " write pprint-rix-value ] each "]" write  ;
 INSTANCE: rix-list rix-sequence
 
-! ;symbol
+! $symbol
 RIX-TYPE: rix-resolve value>> "symbol" <val> over current-namespace>> [ env-get ] curry ?transmute [ value>> "unknown symbol: " prepend eval-error ] unless ;
-M: rix-resolve pprint-rix-value ";" write value>> write ;
+M: rix-resolve pprint-rix-value "$" write value>> write ;
 
 ! (evaluated-immediatly 1 1)
 RIX-TYPE: rix-parens value>> eval-tokens ;
@@ -446,3 +449,5 @@ RIX-TYPE: rix-generic
    value>> [ params>> length [ eval-to-target ] keep [ cut* swap ] curry change-results ] keep
    pick first [ name>> value>> "." prepend ] [ type>> ] bi* prepend "symbol" <val> swapd prefix push-tokens f ;
 M: rix-generic pprint-rix-value "genr '" write [ value>> name>> value>> write ] [ " " write value>> params>> pprint-rix-value ] bi ;
+
+MAIN: repl

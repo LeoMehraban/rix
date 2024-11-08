@@ -2,42 +2,42 @@ prn "test 1"
 assert= (+ 1 1) 2
 
 prn "test 2"
-x: 5
+x: 5;
 assert= x 5
 
 prn "test 3"
-x: 6
+x: 6;
 assert= x 6
 
 prn "test 4"
-foo1: fn [x y] [+ x y]
+foo1: fn [x y] [+ x y];
 assert= (foo1 1 1) 2
 
 prn "test 5"
-y: 10
-foo2: inl [x] [+ x y]
+y: 10;
+foo2: inl [x] [+ x y];
 assert= (foo2 5) 15
 
 prn "test 6"
-y: 11
+y: 11;
 assert= (foo2 5) 16
 
 prn "test 7"
-y: 10
-foo3: fn [x] [+ x y]
+y: 10;
+foo3: fn [x] [+ x y];
 assert= (foo3 5) 15
 
 prn "test 8"
-y: 11
+y: 11;
 assert= (foo3 5) 15
 
 prn "test 9"
-fib: fn [n] [if (<= n 1) [1] [+ fib (- n 1) fib (- n 2)]]
+fib: fn [n] [if (<= n 1) [1] [+ fib (- n 1) fib (- n 2)]];
 assert= (fib 6) 13
 
 prn "test 10"
-number.comb: fn [x y] [+ x y]
-string.comb: fn [x y] [lst>str '[@(str>lst x) @(str>lst y)]]
+number.comb: fn [x y] [+ x y];
+string.comb: fn [x y] [lst>str '[@(str>lst x) @(str>lst y)]];
 assert= (comb 1 1) 2
 
 prn "test 11"
@@ -47,41 +47,29 @@ prn "test 12"
 assert= (map [1 2 3] fn [x] [+ x 1]) [2 3 4]
 
 prn "test 13"
-new-person: fn [name age] [typ '[set 'name ,name set 'age ,age] "person"]
-person.prn*: fn [person] [wrt (scop [name] person) wrt ":" wrt (scop [age] person)]
+new-person: fn [name age] [typ '[set 'name ,name set 'age ,age] "person"];
+person.prn*: fn [person] [wrt (scop [name] person) wrt ":" wrt (scop [age] person)];
 assert= (prnted [prn* new-person "jeff" 19]) "jeff:19"
 
 prn "test 14"
-prop: mac [p] [scop '[,;p] nxt]
+prop: mac [p] [scop '[,$p] nxt];
 assert= (prop age new-person "jeff" 19) 19
 
 prn "test 15"
-potato: "good"
-foo4: fn [] [glob potato: "meh";]
+potato: "good";
+foo4: fn [] [glob potato: "meh";];
 foo4
 assert= potato "meh"
 
 prn "test 16"
-assert= (prnted [try [err "Hello" "goodbye"] fn [_ error] [wrt ;error]]) "ERROR \"Hello\""
+assert= (prnted [try [err "Hello" "goodbye"] fn [_ error] [wrt $error]]) "ERROR \"Hello\""
 
 prn "test 17"
 incl test
-assert= (gdesc ;first@test) "gets the first element of a list"
+assert= (gdesc $first@test) "gets the first element of a list"
 
 prn "test 18"
-assert= (reduce@test [1 2 3] ;+) 6
+assert= (reduce@test [1 2 3] $+) 6
 
 prn "all tests passed!"
-# test:
-# :generics
-# :printing
-# :quotes
-# :unquotes
-# :splice-unquotes
-# :map
-# :mac
-# :nxt
-# :scope objects
-# :globals
-# :try/catch
-# modules
+
