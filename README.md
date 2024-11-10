@@ -38,24 +38,27 @@ try out getting the description of other functions you've seen here so far, to g
 | typ? | fn [type val] | tests if a value is of a certain type |
 | prn | fn [val] | prints anything, inserting a newline afterwards |
 | pprn | fn [val] | prints anything, leaving strings in their literal representation and inserting a newline afterwards |
-| assert= | fn [one two] | throws an error if 'one' and 'two' aren't equal |
+| at | fn [key hash] | gets the value at key stored within 'hash' |
 | tpop | fn [] | pops from the tokenstack. should mainly be used with macros, as using with functions or closures may provide unexpected results |
 | mac | mac [params body] | creates a function with params and a body that returns either a list or a single value that is pushed onto the token array |
 | genr | fn [sym params] | creates a new generic with the given name and params (and assigns it to that name within the global scope) |
 | suquot | fn [val] | makes a value a splice-unquote |
 | or | fn [x y] | preforms 'or' on two bools |
 | if | fn [cond body1 body2] | based on the boolean cond, picks either body1 or body2 and evaluates it |
+| assert= | fn [one two] | throws an error if 'one' and 'two' aren't equal |
 | typ | fn [val type] | sets the type of the value to the given string type. note that sometimes this will cause errors because the types are incompatible (such as if you set a number to type 'symbol') |
 | desc | fn [desc value] | sets the description of a value |
 | nth | fn [list n] | gets the nth element of a list |
 | > | genr '> [x y] | No description |
 | tapp | fn [val] | concatinates a list onto the tokenstack |
 | uquot | fn [val] | makes a value an unquote |
+| varimac | mac [params body] | creates a function with params and a body that returns either a list or a single value that is pushed onto the token array. the last named param is a list of every token between the penultimate param and a ; token |
 | str>lst | fn [string] | converts a string to a list |
 | - | fn [x y] | subtracts two numbers |
 | gdesc | fn [value] | gets the description of a value and returns it |
 | comb | genr 'comb [x y] | No description |
 | number.< | fn [x y] | compares two numbers |
+| varinl | mac [params body] | creates a function with params and a body whose results may depend on the surrounding enviroment. the last named param is a list of every value between the penultimate param and a ; token |
 | set | inl [name value] | defines a variable |
 | <= | genr '<= [x y] | No description |
 | exp | mac [dec] | takes a declaration and sets it for exporting. note that inline functions should not be exported |
@@ -70,7 +73,7 @@ try out getting the description of other functions you've seen here so far, to g
 | < | genr '< [x y] | No description |
 | prn* | genr 'prn* [val] | No description |
 | * | fn [x y] | multiplies two numbers |
-| scop | fn [code scope] | evaluates the list 'scope' within its own scope, and then calls 'code' within that same scope |
+| scop | fn [code hash] | evaluates 'code' within a new scope defined with the keys and values in 'hash' |
 | map | fn [list func] | applies 'func' to each element in 'list', returning a new list made up of all the return values |
 | glob | mac [dec] | takes a declaration and evaluates it within the global namespace |
 | pdesc | fn [value] | gets the description of a value and prints it |
@@ -82,10 +85,12 @@ try out getting the description of other functions you've seen here so far, to g
 | err | fn [str] | throws an error with the given string as a message |
 | number.>= | fn [x y] | compares two numbers |
 | lst>str | fn [list] | converts a list to a string |
+| vari | mac [params body] | creates a function with params and a body. the last named param is a list of every value between the penultimate param and a ; token |
 | new-err | fn [str] | returns an error with the given string as a message |
 | / | fn [x y] | divides two numbers |
 | prnted | fn [list] | runs 'list', returning a string containing everything that was printed during its running |
 | wrt | fn [val] | prints anything |
+| setat | fn [key value hash] | sets 'value' at 'key' within 'hash' |
 | tpush | fn [val] | pushes to the tokenstack |
 | = | fn [x y] | checks for equality |
 | inl | mac [params body] | creates a function with params and a body whose results may depend on the surrounding enviroment |

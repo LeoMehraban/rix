@@ -43,6 +43,9 @@ CONSTANT: rix-version "0.01"
 : dwhen% ( quot -- ? ) [ drop f ] if ; inline
 : when*% ( quot -- ? ) [ f ] if* ; inline
 
+: seq-to-pairs ( seq -- pairs ) dup length 0 > [ unclip V{  } clone swap suffix! [ over last vector?
+                                                                                   [ over last length 2 <= [ suffix! ] [ [ unclip-last ] dip suffix! suffix! ] if ] [ [ unclip-last ] dip 2array >vector suffix! ] if ] reduce ] when ;
+: hash-to-seq ( hash -- seq ) V{ } clone [ [ suffix! ] bi@ ] assoc-reduce ;
 
 : current ( lexer -- char )  [ pos>> ] [ str>> ] bi nth ;
 : writech ( char -- ) 1string write ;
@@ -53,13 +56,15 @@ CONSTANT: rix-version "0.01"
 : reset-if ( lexer quot: ( ..a lexer -- ..b lexer parsed? ) -- ..b lexer parsed? ) over clone [ call swap ] dip [ ? ] keepdd ; inline
 : skip-whitespace ( lexer -- lexer ) valid-length? [ [ dup current blank? [ lexer-next ] when% ] loop ] when ;
 : skip-non-newline-whitespace ( lexer -- lexer ) valid-length? [ [ dup current [ blank? ] [ CHAR: \n = not ] bi and [ lexer-next ] when% ] loop ] when ;
-: valid-char? ( char -- ? ) [ { [ CHAR: ( eq? ] [ CHAR: ) eq? ] [ CHAR: [ eq? ] [ CHAR: ] eq? ] [ CHAR: ; eq? ] [ CHAR: @ eq? ] [ CHAR: $ eq? ] } cleave ] output>array [  ] any? not ;
+: valid-char? ( char -- ? ) [ { [ CHAR: ( eq? ] [ CHAR: ) eq? ] [ CHAR: { eq? ] [ CHAR: } eq? ]  [ CHAR: [ eq? ] [ CHAR: ] eq? ] [ CHAR: ; eq? ] [ CHAR: @ eq? ] [ CHAR: $ eq? ] } cleave ] output>array [  ] any? not ;
 : lex-word ( lexer -- lexer word/f ) t [ [ [ dup current [ valid-char? ] [ blank? not ] bi and ] when% ] [ ?lexer-next [ writech ] dip ] while ] with-string-writer dup empty? [ drop f ] when ;
 : lex-number ( lexer -- lexer number/f ) [ lex-word [ dec> [ "number" <val> ] when*% ] when*% ] reset-if ;
 : lex-module-call ( lexer -- lexer module-call/f ) [ lex-word [ swap CHAR: @ match-and-advance [ lex-word [ swapd [ "symbol" <val> ] bi@ module-call boa "module-call" <val> ] [ nip f ] if* ] [ nip f ] if ] when*% ] reset-if ;
 : lex-resolve ( lexer -- lexer resolve/f ) CHAR: $ match-and-advance [ [ lex-module-call [ value>> "module-resolve" <val> ]  [ lex-word [ "resolve" <val> ] when*% ] if* ] reset-if ] when%  ;
+: lex-semi ( lexer -- lexer semi/f ) CHAR: ; match-and-advance [ t "semicolon" <val> ] when% ;
 : lex-dec ( lexer -- lexer dec/f ) [ lex-word [ unclip-last CHAR: : = [ swap lex-until-semi swapd dec boa "dec" <val> ] dwhen% ] when*% ] reset-if ;
 : lex-list ( lexer -- lexer list/f ) 91 match-and-advance [ V{  } clone swap [ 93 match-and-advance not ] [ lex-val swapd suffix! swap ] while swap "list" <val> ] when% ;
+: lex-hash ( lexer -- lexer hash/f ) CHAR: { match-and-advance [ V{  } clone swap [ CHAR: } match-and-advance not ] [ lex-val swapd suffix! swap ] while swap seq-to-pairs parse-hashtable "hash" <val> ] when% ;
 : lex-symbol ( lexer -- lexer symbol/f ) lex-word [ dup [ "tru" = ] [ "fal" = ] bi or [ "tru" = "bool" <val> ]  [ dup "nil" = [ drop f "nil" <val> ] [ "symbol" <val> ] if ] if ] when*% ;
 : lex-quote ( lexer -- lexer quote/f ) CHAR: ' match-and-advance [ lex-val "quote" <val> ] when% ;
 : lex-unquote ( lexer -- lexer quote/f ) CHAR: , match-and-advance [ lex-val "unquote" <val> ] when% ;
@@ -90,6 +95,8 @@ CONSTANT: rix-version "0.01"
     [ lex-resolve ] unless*
     [ lex-parens ] unless*
     [ lex-symbol ] unless*
+    [ lex-semi ] unless*
+    [ lex-hash ] unless*
     [ skip-useless ] dip
     [ "Invalid expression" lexer-error ] unless*
  ;
@@ -107,6 +114,7 @@ CONSTANT: rix-version "0.01"
         [ lex-resolve ] unless*
         [ lex-parens ] unless*
         [ lex-symbol ] unless*
+        [ lex-hash ] unless*
         [ skip-useless ] dip
         [ valid-length? [ dup current CHAR: ; = not ] [ t ] if [ "Invalid expression" lexer-error ] when f ] unless*
         [ swapd suffix! swap ] when*
@@ -173,10 +181,16 @@ INSTANCE: rix-sequence sequence
 
 : flatten-flagged ( array -- array ) [ dup sequence? [ dup [ clone V{ } >>value [ dup flagged? [ val>> dup sequence? [ append ] [ suffix ] if ] [ suffix ] if ] reduce ] keep like ] when ] deep-map ;
 
+DEFER: unquote-scan
+
+: hash-unquote-scan ( evaluator hash -- evaluator hash ) value>> hash-to-seq "list" <val> "quote" <val> unquote-scan value>> seq-to-pairs parse-hashtable "hash" <val> ;
+
 : unquote-scan ( evaluator val -- evaluator val )
     value>> dup sequence? [ dupd [ dup sequence? not
                      [ dup type>> "unquote" =
-                       [ value>> eval-one nip ] [ dup type>> "splice-unquote" = [ value>> rix-eval [ eval-next ] unless* flagged boa ] when nip ] if ] [ nip ] if ] with deep-map flatten-flagged ] when "quote" <val> ;
+                       [ value>> eval-one nip ] [ dup type>> "splice-unquote" = [ value>> rix-eval [ eval-next ] unless* flagged boa ] when nip ] if ]
+                     [ dup type>> "hash" = [ hash-unquote-scan ] when nip ] if ] with deep-map flatten-flagged ] [ dup type>> "hash" =
+                                                                                                [ hash-unquote-scan ] when ] if "quote" <val> ;
 
 : eval-all ( evaluator -- evaluator ) [ dup tokens>> length 0 > ] [ eval-next push-results ] while ;
 
@@ -188,7 +202,8 @@ INSTANCE: rix-sequence sequence
 
 : eval-tokens ( evaluator tokens -- evaluator result )
     over results>> clone [ [ dup tokens>> [ suffix! ] curry change-extra-tokens V{ } clone >>tokens ] dip
-                                                        push-tokens eval-all extra-tokens>tokens ] dip [ [ last ] dip ] curry change-results swap ;
+                           push-tokens eval-all extra-tokens>tokens ] dip [ [ last ] dip ] curry change-results swap ;
+: eval-until-semi ( evaluator -- evaluator results ) V{ } clone [ over can-cont? [ swap pop-token [ type>> "semicolon" = not ] 1check [ eval-one swap [ suffix! ] dip t ] [ drop f ] if swapd ] when% ] loop  ;
 
 : eval-set-global ( evaluator symbol value -- evaluator ) swap pick global-namespace>> env-set drop ;
 
@@ -252,15 +267,25 @@ INSTANCE: rix-sequence sequence
         { SYM: map $[ { SYM: list SYM: func } [ dup [ "list" get-value ] [ "func" get-value* ] bi [ swap 2array push-tokens eval-until-one ] curry map "list" <val> ] <builtin>
                       "applies 'func' to each element in 'list', returning a new list made up of all the return values" desc ] }
         { SYM: lst>str $[ { SYM: list } [ dup "list" get-value [ value>> ] "" map-as "string" <val> ] <builtin> "converts a list to a string" desc ] }
+        { SYM: at $[ { SYM: key SYM: hash } [ dup [ "key" get-value* ] [ "hash" get-value ] bi at [ f "bool" <val> ] unless* ] <builtin> "gets the value at key stored within 'hash'" desc ] }
         { SYM: not $[ { SYM: x } [ dup "x" get-value not "bool" <val> ] <builtin> "preforms 'not' on a bool" desc ] }
         { SYM: inl $[ { SYM: params SYM: body } [ make-inl push-token ] <builtin-macro> "creates a function with params and a body whose results may depend on the surrounding enviroment" desc ] } 
         { SYM: fn $[ { SYM: params SYM: body } [ make-func push-token ] <builtin-macro> "creates a function with params and a body" desc  ] }
         { SYM: mac $[ { SYM: params SYM: body } ! 
                       [ make-macro push-token ] <builtin-macro>
                       "creates a function with params and a body that returns either a list or a single value that is pushed onto the token array" desc ] }
+        { SYM: varinl $[ { SYM: params SYM: body } [ make-inl [ "inline-variadic" >>type ] change-value push-token ] <builtin-macro>
+                         "creates a function with params and a body whose results may depend on the surrounding enviroment. the last named param is a list of every value between the penultimate param and a ; token" desc ] } 
+        { SYM: vari $[ { SYM: params SYM: body } [ make-func [ "variadic" >>type ] change-value push-token ] <builtin-macro>
+                       "creates a function with params and a body. the last named param is a list of every value between the penultimate param and a ; token" desc  ] }
+        { SYM: varimac $[ { SYM: params SYM: body }
+                          [ make-macro [ "variadic-macro" >>type ] change-value push-token ] <builtin-macro>
+                      "creates a function with params and a body that returns either a list or a single value that is pushed onto the token array. the last named param is a list of every token between the penultimate param and a ; token"
+                                                                                                                                                                                                                                  desc ] }
         { SYM: typ? $[ { SYM: type SYM: val } [ dup [ "type" get-value ] [ "val" get-value* ] bi type>> = "bool" <val> ] <builtin> "tests if a value is of a certain type" desc ] }
         { SYM: imps? $[ { SYM: gen SYM: val } [ dup [ "gen" get-value name>> ] [ "val" get-value* ] bi type>> "." append prepend over current-namespace>> env-get [ t ] when% "bool" <val> ]
                         <builtin> "tests if the type of this value implements a generic" desc ] }
+        { SYM: setat $[ { SYM: key SYM: value SYM: hash } [ dup [ "value" get-value* ] [ "key" get-value* ] [ "hash" get-value clone ] tri [ set-at ] keep "hash" <val> ] <builtin> "sets 'value' at 'key' within 'hash'" desc ] }
         { SYM: tpop $[ { } [ pop-token ] <builtin> "pops from the tokenstack. should mainly be used with macros, as using with functions or closures may provide unexpected results" desc ] }
         { SYM: tpush $[ { SYM: val } [ dup "val" get-value* push-token f ] <builtin> "pushes to the tokenstack" desc ] }
         { SYM: tapp $[ { SYM: val } [ dup "val" get-value* push-tokens f ] <builtin> "concatinates a list onto the tokenstack" desc ] }
@@ -279,8 +304,8 @@ INSTANCE: rix-sequence sequence
                        "if the boolean cond is true, evaluates the body" desc ] }
         { SYM: typ $[ { SYM: val SYM: type } [ dup [ "val" get-value ] [ "type" get-value ] bi <val> ] <builtin>
                       "sets the type of the value to the given string type. note that sometimes this will cause errors because the types are incompatible (such as if you set a number to type 'symbol')" desc ] }
-        { SYM: scop $[ { SYM: code SYM: scope } [ evaluator-<env> dup [ "scope" get-value ] [ "code" get-value ] bi append f "scopeup" <val> suffix eval-tokens ] <builtin>
-                       "evaluates the list 'scope' within its own scope, and then calls 'code' within that same scope" desc ] }
+        { SYM: scop $[ { SYM: code SYM: hash } [ dup [ "code" get-value ] [ "hash" get-value ] bi swapd [ [ <env> ] dip >>bindings ] curry change-current-namespace swap f "scopeup" <val> suffix eval-tokens ] <builtin>
+                       "evaluates 'code' within a new scope defined with the keys and values in 'hash'" desc ] }
         { SYM: set $[ { SYM: name SYM: value } [ dup [ "name" get-value* ] [ "value" get-value* ] bi pick current-namespace>> parent>> [ swapd env-set drop ] keepd ] <builtin-inl> "defines a variable" desc ] }
         { SYM: genr $[ { SYM: sym SYM: params } [ dup [ "sym" get-value* ] [ "params" get-value* ] bi genr boa "generic" <val> [ eval-set-global ] keep ] <builtin>
                        "creates a new generic with the given name and params (and assigns it to that name within the global scope)" desc ]  }
@@ -301,7 +326,7 @@ INSTANCE: rix-sequence sequence
         { SYM: prnted $[ { SYM: list } [ dup "list" get-value [ eval-tokens drop ] with-string-writer "string" <val> ]  <builtin> "runs 'list', returning a string containing everything that was printed during its running" desc ] }
         { SYM: assert= $[ { SYM: one SYM: two } [ dup [ "one" get-value* ] [ "two" get-value* ] bi [ = ] 2check [ drop ]
                                                    [ [ [ pprint-rix-value ] with-string-writer ] bi@ " != " prepend append "Assert failed: " prepend eval-error ] if ]
-                            <builtin> "throws an error if 'one' and 'two' aren't equal" desc ] }
+                          <builtin> "throws an error if 'one' and 'two' aren't equal" desc ] }
     } clone rix-env boa clone
     ;
 
@@ -347,6 +372,7 @@ M: rix-value pprint-rix-value dup ".prn*" get-rix-impl [ eval-rix-fun drop ] [ v
     "| name | signature      | description |\n| --- | ------------------| ------------|" print default-env bindings>> [ [ "| " write [ pprint-rix-value " | " write ] bi@ ] keep description>> write " |" print ] assoc-each  ;
 
 : tpopn ( eval n -- eval toks ) [ 1 - over pop-token nip ] collector [ [ dup 0 <= not ] swap while ] dip nip ;
+: tpop-until-semi ( eval -- eval toks ) [ pop-token [ type>> "semicolon" = not ] 1check [ drop f f ] unless* swap ] collector [ loop ] dip ;
 
 ! hello@world
 RIX-TYPE: rix-module-call value>> [ module>> over current-namespace>> [ env-get ] curry ?transmute [ value>> "unknown module: " prepend eval-error ] unless value>> ] keep symbol>> swap [ at ] curry ?transmute
@@ -361,14 +387,21 @@ M: rix-module-resolve pprint-rix-value "$" write value>> [ symbol>> value>> writ
 ! 1798
 RIX-TYPE: rix-number ;
 
+RIX-TYPE: rix-semicolon drop f ;
+M: rix-semicolon pprint-rix-value drop ";" write ;
+
 RIX-TYPE: rix-scopeup drop evaluator-parent f ;
 M: rix-scopeup pprint-rix-value drop "^" write ;
 
 RIX-TYPE: rix-scopedown drop evaluator-<env> f  ;
 M: rix-scopedown pprint-rix-value drop "|" write ;
 
+
 ! "Hello, World"
 RIX-TYPE: rix-string ;
+
+RIX-TYPE: rix-hash ;
+M: rix-hash pprint-rix-value "{" write value>> hash-to-seq dup empty? not [ unclip pprint-rix-value ] when [ " " write pprint-rix-value ] each "}" write  ;
 
 RIX-TYPE: rix-module ;
 M: rix-module pprint-rix-value value>> name>> "mod " write write ;
@@ -436,6 +469,30 @@ RIX-TYPE: rix-macro
   [ value>> param-names>> [ tuck current-namespace>> ] dip swap [ rot env-set ] 2reduce >>current-namespace ] keep value>> quot>> call( evaluator -- evaluator ) f ;
 M: rix-macro pprint-rix-value value>> "mac " write param-names>> "list" <val> pprint-rix-value ;
 
+! vari [x ys] '[,x @ys]
+RIX-TYPE: rix-variadic
+  [ value>> param-names>> length 1 - target-to-results [ eval-until-semi "list" <val> ] dip swap suffix swap ] keep
+  [ value>> env>> [ [ <env> ] dip load-env ] curry change-current-namespace ] keep
+  [ value>> param-names>> [ tuck current-namespace>> ] dip swap [ rot env-set ] 2reduce >>current-namespace ] keep
+  value>> quot>> call( evaluator -- evaluator result/f )
+;
+M: rix-variadic pprint-rix-value value>> "vari " write param-names>> unclip-last [ "..." append ] change-value suffix "list" <val> pprint-rix-value ;
+
+! varimac [x ys] '[+ ,x ,(nth ys 0)]
+RIX-TYPE: rix-variadic-macro
+  [ evaluator-<env> ] dip
+  [ value>> param-names>> length tpopn [ tpop-until-semi "list" <val> ] dip swap suffix swap ] keep
+  [ value>> param-names>> [ tuck current-namespace>> ] dip swap [ rot env-set ] 2reduce >>current-namespace ] keep value>> quot>> call( evaluator -- evaluator ) f ;
+M: rix-variadic-macro pprint-rix-value value>> "varimac " write param-names>> "list" <val> pprint-rix-value ;
+
+! varinl  [x ys] '[,x @ys]
+RIX-TYPE: rix-inline-variadic
+  [ evaluator-<env> ] dip
+  [ value>> param-names>> length target-to-results [ eval-until-semi "list" <val> ] dip swap suffix swap ] keep
+  [ value>> param-names>> [ tuck current-namespace>> ] dip swap [ rot env-set ] 2reduce >>current-namespace ] keep value>> quot>> call( evaluator -- evaluator result/f  )
+  ;
+M: rix-inline-variadic pprint-rix-value value>> "varinl " write param-names>> "list" <val> pprint-rix-value ;
+
 ! ,something
 RIX-TYPE: rix-unquote ;
 M: rix-unquote pprint-rix-value "," write value>> pprint-rix-value ;
@@ -446,8 +503,8 @@ M: rix-splice-unquote pprint-rix-value "@" write value>> pprint-rix-value ;
 
 ! genr 'foo [x y]
 RIX-TYPE: rix-generic
-   value>> [ params>> length [ eval-to-target ] keep [ cut* swap ] curry change-results ] keep
-   pick first [ name>> value>> "." prepend ] [ type>> ] bi* prepend "symbol" <val> swapd prefix push-tokens f ;
+   value>> [ eval-until-one swap ] dip
+   pick [ name>> value>> "." prepend ] [ type>> ] bi* prepend "symbol" <val> rot 2array >vector push-tokens f ;
 M: rix-generic pprint-rix-value "genr '" write [ value>> name>> value>> write ] [ " " write value>> params>> pprint-rix-value ] bi ;
 
 MAIN: repl
