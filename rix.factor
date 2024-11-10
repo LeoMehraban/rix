@@ -286,7 +286,7 @@ DEFER: unquote-scan
         { SYM: imps? $[ { SYM: gen SYM: val } [ dup [ "gen" get-value name>> ] [ "val" get-value* ] bi type>> "." append prepend over current-namespace>> env-get [ t ] when% "bool" <val> ]
                         <builtin> "tests if the type of this value implements a generic" desc ] }
         { SYM: setat $[ { SYM: key SYM: value SYM: hash } [ dup [ "value" get-value* ] [ "key" get-value* ] [ "hash" get-value clone ] tri [ set-at ] keep "hash" <val> ] <builtin> "sets 'value' at 'key' within 'hash'" desc ] }
-        { SYM: tpop $[ { } [ pop-token ] <builtin> "pops from the tokenstack. should mainly be used with macros, as using with functions or closures may provide unexpected results" desc ] }
+        { SYM: tpop $[ { } [ pop-token ] <builtin> "pops from the tokenstack. should mainly be used with macros, as using with functions or inline functions may provide unexpected results" desc ] }
         { SYM: tpush $[ { SYM: val } [ dup "val" get-value* push-token f ] <builtin> "pushes to the tokenstack" desc ] }
         { SYM: tapp $[ { SYM: val } [ dup "val" get-value* push-tokens f ] <builtin> "concatinates a list onto the tokenstack" desc ] }
         { SYM: letfn $[ { SYM: params SYM: body } [ make-func value>> push-token ] <builtin-macro> "creates a function with params and a body and calls that function immediatly" desc ] }

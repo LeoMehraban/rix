@@ -39,7 +39,7 @@ all functions included by default are listed below. if you don't understand some
 | prn | fn [val] | prints anything, inserting a newline afterwards |
 | pprn | fn [val] | prints anything, leaving strings in their literal representation and inserting a newline afterwards |
 | at | fn [key hash] | gets the value at key stored within 'hash' |
-| tpop | fn [] | pops from the tokenstack. should mainly be used with macros, as using with functions or closures may provide unexpected results |
+| tpop | fn [] | pops from the tokenstack. should mainly be used with macros, as using with functions or inline functions may provide unexpected results |
 | mac | mac [params body] | creates a function with params and a body that returns either a list or a single value that is pushed onto the token array |
 | genr | fn [sym params] | creates a new generic with the given name and params (and assigns it to that name within the global scope) |
 | suquot | fn [val] | makes a value a splice-unquote |
