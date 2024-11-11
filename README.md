@@ -33,19 +33,21 @@ all functions included by default are listed below. if you don't understand some
 | + | fn [x y] | adds two numbers |
 | incl | mac [name] | includes the module specified by 'name' |
 | number.<= | fn [x y] | compares two numbers |
+| consvarimac | fn [params body] | constructs a variadic macro; see the description of 'consfn' for the difference between this and 'varimac' |
 | \|=\| | fn [x y] | checks for loose equality (when two rix values have the same internal value) |
 | len | fn [list] | gets the length of a list |
 | typ? | fn [type val] | tests if a value is of a certain type |
 | prn | fn [val] | prints anything, inserting a newline afterwards |
 | pprn | fn [val] | prints anything, leaving strings in their literal representation and inserting a newline afterwards |
 | at | fn [key hash] | gets the value at key stored within 'hash' |
+| fbody | fn [func] | gets the body of a function. primatives return [prim] |
 | tpop | fn [] | pops from the tokenstack. should mainly be used with macros, as using with functions or inline functions may provide unexpected results |
 | mac | mac [params body] | creates a function with params and a body that returns either a list or a single value that is pushed onto the token array |
 | genr | fn [sym params] | creates a new generic with the given name and params (and assigns it to that name within the global scope) |
 | suquot | fn [val] | makes a value a splice-unquote |
 | or | fn [x y] | preforms 'or' on two bools |
+| consmac | fn [params body] | constructs a macro; see the description of 'consfn' for the difference between this and 'mac' |
 | if | fn [cond body1 body2] | based on the boolean cond, picks either body1 or body2 and evaluates it |
-| assert= | fn [one two] | throws an error if 'one' and 'two' aren't equal |
 | typ | fn [val type] | sets the type of the value to the given string type. note that sometimes this will cause errors because the types are incompatible (such as if you set a number to type 'symbol') |
 | desc | fn [desc value] | sets the description of a value |
 | nth | fn [list n] | gets the nth element of a list |
@@ -54,11 +56,13 @@ all functions included by default are listed below. if you don't understand some
 | uquot | fn [val] | makes a value an unquote |
 | varimac | mac [params body] | creates a function with params and a body that returns either a list or a single value that is pushed onto the token array. the last named param is a list of every token between the penultimate param and a ; token |
 | str>lst | fn [string] | converts a string to a list |
+| assert= | fn [one two] | throws an error if 'one' and 'two' aren't equal |
 | - | fn [x y] | subtracts two numbers |
 | gdesc | fn [value] | gets the description of a value and returns it |
 | comb | genr 'comb [x y] | No description |
 | number.< | fn [x y] | compares two numbers |
 | varinl | mac [params body] | creates a function with params and a body whose results may depend on the surrounding enviroment. the last named param is a list of every value between the penultimate param and a ; token |
+| consfn | fn [params body] | constructs a function with params and a body. consfn is a function itself, meaning it evaluates its input parameters, so you can create a function with a runtime-computed definition |
 | set | inl [name value] | defines a variable |
 | <= | genr '<= [x y] | No description |
 | exp | mac [dec] | takes a declaration and sets it for exporting. note that inline functions should not be exported |
@@ -66,10 +70,13 @@ all functions included by default are listed below. if you don't understand some
 | decons | fn [list] | returns a list where the first element is the first element of the input list, and the last element is the remainder of the list |
 | >= | genr '>= [x y] | No description |
 | and | fn [x y] | preforms 'and' on two bools |
+| consvarinl | fn [params body] | constructs a variadic inline function; see the description of 'consfn' for the difference between this and 'varinl' |
 | imps? | fn [gen val] | tests if the type of this value implements a generic |
 | fn | mac [params body] | creates a function with params and a body |
+| consvari | fn [params body] | constructs a variadic function; see the description of 'consfn' for the difference between this and 'vari' |
 | ifdo | fn [cond body] | if the boolean cond is true, evaluates the body |
 | quot | fn [val] | quotes a value |
+| consinl | fn [params body] | constructs an inline function; see the description of 'consfn' for the difference between this and 'inl' |
 | < | genr '< [x y] | No description |
 | prn* | genr 'prn* [val] | No description |
 | * | fn [x y] | multiplies two numbers |
@@ -88,10 +95,12 @@ all functions included by default are listed below. if you don't understand some
 | vari | mac [params body] | creates a function with params and a body. the last named param is a list of every value between the penultimate param and a ; token |
 | new-err | fn [str] | returns an error with the given string as a message |
 | / | fn [x y] | divides two numbers |
-| prnted | fn [list] | runs 'list', returning a string containing everything that was printed during its running |
+| fparams | fn [func] | gets the params of a function |
+| evl | fn [val] | evaluates 'val' |
 | wrt | fn [val] | prints anything |
 | setat | fn [key value hash] | sets 'value' at 'key' within 'hash' |
 | tpush | fn [val] | pushes to the tokenstack |
+| prnted | fn [list] | runs 'list', returning a string containing everything that was printed during its running |
 | = | fn [x y] | checks for equality |
 | inl | mac [params body] | creates a function with params and a body whose results may depend on the surrounding enviroment |
 
