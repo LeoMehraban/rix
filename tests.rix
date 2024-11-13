@@ -1,82 +1,119 @@
 prn "test 1"
 assert= (+ 1 1) 2
+prn "passed test 1"
 
 prn "test 2"
 x: 5;
 assert= x 5
+prn "passed test 2"
 
 prn "test 3"
 x: 6;
 assert= x 6
+prn "passed test 3"
 
 prn "test 4"
 foo1: fn [x y] [+ x y];
 assert= (foo1 1 1) 2
+prn "passed test 4"
 
 prn "test 5"
 y: 10;
 foo2: inl [x] [+ x y];
 assert= (foo2 5) 15
+prn "passed test 5"
 
 prn "test 6"
 y: 11;
 assert= (foo2 5) 16
+prn "passed test 6"
 
 prn "test 7"
 y: 10;
 foo3: fn [x] [+ x y];
 assert= (foo3 5) 15
+prn "passed test 7"
 
 prn "test 8"
 y: 11;
 assert= (foo3 5) 15
+prn "passed test 8"
 
 prn "test 9"
 fib: fn [n] [if (<= n 1) [1] [+ fib (- n 1) fib (- n 2)]];
 assert= (fib 6) 13
+prn "passed test 9"
 
 prn "test 10"
 number.comb: fn [x y] [+ x y];
 string.comb: fn [x y] [lst>str '[@(str>lst x) @(str>lst y)]];
 assert= (comb 1 1) 2
+prn "passed test 10"
 
 prn "test 11"
 assert= (comb "Hello, " "world!") "Hello, world!"
+prn "passed test 11"
 
 prn "test 12"
 assert= (map [1 2 3] fn [x] [+ x 1]) [2 3 4]
+prn "passed test 12"
 
 prn "test 13"
 new-person: fn [name age] [typ '{name ,name age ,age} "person"];
 person.prn*: fn [person] [wrt (at 'name person) wrt ":" wrt (at 'age person)];
 assert= (prnted [prn* new-person "jeff" 19]) "jeff:19"
+prn "passed test 13"
 
 prn "test 14"
 prop: mac [p] [scop '[,$p] nxt];
 assert= (prop age new-person "jeff" 19) 19
+prn "passed test 14"
 
 prn "test 15"
 potato: "good";
 foo4: fn [] [glob potato: "meh";];
 foo4
 assert= potato "meh"
+prn "passed test 15"
 
 prn "test 16"
 assert= (prnted [try [err "Hello" "goodbye"] fn [_ error] [wrt $error]]) "ERROR \"Hello\""
+prn "passed test 16"
 
 prn "test 17"
 incl test
 assert= (gdesc $first@test) "gets the first element of a list"
+prn "passed test 17"
 
 prn "test 18"
 assert= (reduce@test [1 2 3] $+) 6
+prn "passed test 18"
 
 prn "test 19"
 sum-all: vari [xs] [reduce@test xs $+];
 assert= (sum-all 1 2 3;) 6
+prn "passed test 19"
 
 prn "test 20"
 assert= (sum-all 1 1 2 3;) 7
+prn "passed test 20"
+
+prn "test 21"
+assert= (fbody fn [x y] [+ x y]) [+ x y]
+prn "passed test 21"
+
+prn "test 22"
+assert= (fparams fn [x y] [+ x y]) [x y]
+prn "passed test 22"
+
+prn "test 23"
+curry1: fn [func val] [consfn (rest@test fparams $func) '[,$func ,$val @(rest@test fparams $func)]];
+assert= (fparams (curry1 fn [x y] [+ x y] 6)) [y]
+prn "passed test 23"
+
+prn "test 24"
+assert= (fbody (curry1 fn [x y] [+ x y] 6)) '[,(fn [x y] [+ x y]) 6 y]
+prn "passed test 24"
 
 prn "all tests passed!"
 

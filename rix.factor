@@ -1,6 +1,6 @@
 ! Copyright (C) 2024 Your name.
 ! See https://factorcode.org/license.txt for BSD license
-USING: kernel generic parser assocs literals namespaces arrays environment lexer prettyprint splitting classes.tuple colors hashtables continuations sequences.deep prettyprint.custom prettyprint.sections  words classes.predicate quotations accessors vectors classes.parser math sequences combinators combinators.smart unicode strings io io.styles io.files io.encodings.utf8 io.streams.string math.parser strings.parser ;
+USING: kernel generic parser assocs command-line literals namespaces arrays environment lexer prettyprint splitting classes.tuple colors hashtables continuations sequences.deep prettyprint.custom prettyprint.sections  words classes.predicate quotations accessors vectors classes.parser math sequences combinators combinators.smart unicode strings io io.styles io.files io.encodings.utf8 io.streams.string math.parser strings.parser ;
 IN: rix
 DEFER: lex-val
 DEFER: lex-until-semi
@@ -38,7 +38,7 @@ SYNTAX: GENR: scan-token dup [ "symbol" <val> ] bi@ ";" parse-tokens [ "symbol" 
 GENERIC: pprint-rix-value ( value -- )
 M: rix-value rix-eval ;
 M: rix-value pprint* "RIX:" text [ pprint-rix-value ] with-string-writer text ;
-CONSTANT: rix-version "0.01"
+CONSTANT: rix-version "0.02"
 : desc ( val desc -- val ) >>description ;
 >>
 
@@ -387,6 +387,8 @@ M: rix-value pprint-rix-value dup ".prn*" get-rix-impl [ eval-rix-fun drop ] [ v
         ] loop drop
     ]  [ clear-genv ] finally ;
 
+: run-rix ( -- ) command-line get-global dup length 0 > [ [ 4 cut* ".rix" = [ ".rix" append utf8 file-contents eval-str-to-str drop ] [ "file name must end in .rix" eval-error ] if ] each ] [ drop repl ] if ;
+
 : compress-env ( env -- env ) dup parent>> [ compress-env swap [ bindings>> ] bi@ assoc-union f swap rix-env boa ] when* ;
 : env-set-parent ( env parent -- env ) [ swap [ >>parent ] when* ] curry change-parent ;
 : load-env ( env1 env2 -- env ) compress-env env-set-parent ;
@@ -530,4 +532,4 @@ RIX-TYPE: rix-generic
    pick [ name>> value>> "." prepend ] [ type>> ] bi* prepend "symbol" <val> rot 2array >vector push-tokens f ;
 M: rix-generic pprint-rix-value "genr '" write [ value>> name>> value>> write ] [ " " write value>> params>> pprint-rix-value ] bi ;
 
-MAIN: repl
+MAIN: run-rix

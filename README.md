@@ -3,8 +3,9 @@
 rix (doesn't stand for anything) is a programming language I'm currently working on creating. There are probably a lot of bugs at the moment.
 
 ## installing
+to build rix, you need to have installed [factor](https://factorcode.org/). Then, clone this repo into the work folder in your factor directory and load rix.factor. then, run `"rix" deploy`, and wait for an executable to be generated
 
-to use rix right now, you need to have installed [factor](https://factorcode.org/). Then, clone this repo into the work folder in your factor directory and load rix.factor. once you do that, you can run the repl word to open the rix repl
+if you have a mac (maybe also a linux computer but I haven't checked), you can use the pre-built binary
 
 ## so what is rix?
 
@@ -25,6 +26,16 @@ Here's some examples:
 `pdesc $prn`: prints the description of the prn function. notice the dollarsign syntax. that gets the value of the variable prn without evaluating it. if you just wrote `pdesc prn`, rix would complain that you aren't providing enough parameters to the prn function
 
 all functions included by default are listed below. if you don't understand some things, it's helpful to look through test.rix and tests.rix (particularly tests.rix)
+
+## some more stuff
+
+'generics' (not the typical generic types) are functions that call different sections of code depending on the type of the first parameter. you declare a new generic with the `genr` function.
+
+'modules' are files of code that can be included with the `incl` macro. it searches your disk, first checking in the current directory for a file `modulename.rix`, and then in the `~/.rix` folder (if it exists) for the same file
+
+you can override the directories it checks with the RIX-PATH enviroment variable. Only declarations prefixed with the `exp` macro (see test.rix for an example) will be exported.
+
+you can access stuff declared in modules with the `symbol@modulename` syntax. of course you can also assign the value of `symbol@modulename` to a variable as well, so you can access it without all that extra syntax
 
 ## builtin functions, macros, and inline functions
 
@@ -103,13 +114,3 @@ all functions included by default are listed below. if you don't understand some
 | prnted | fn [list] | runs 'list', returning a string containing everything that was printed during its running |
 | = | fn [x y] | checks for equality |
 | inl | mac [params body] | creates a function with params and a body whose results may depend on the surrounding enviroment |
-
-## some more stuff
-
-'generics' (not the typical generic types) are functions that call different sections of code depending on the type of the first parameter. you declare a new generic with the `genr` function.
-
-'modules' are files of code that can be included with the `incl` macro. it searches your disk, first checking in the current directory for a file `modulename.rix`, and then in the `~/.rix` folder (if it exists) for the same file
-
-you can override the directories it checks with the RIX-PATH enviroment variable. Only declarations prefixed with the `exp` macro (see test.rix for an example) will be exported.
-
-you can access stuff declared in modules with the `symbol@modulename` syntax. of course you can also assign the value of `symbol@modulename` to a variable as well, so you can access it without all that extra syntax
