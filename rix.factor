@@ -1,6 +1,6 @@
 ! Copyright (C) 2024 Your name.
 ! See https://factorcode.org/license.txt for BSD license
-USING: kernel generic parser assocs command-line literals namespaces arrays environment lexer prettyprint splitting classes.tuple colors hashtables continuations sequences.deep prettyprint.custom prettyprint.sections  words classes.predicate quotations accessors vectors classes.parser math sequences combinators combinators.smart unicode strings io io.styles io.files io.encodings.utf8 io.streams.string math.parser strings.parser ;
+USING: kernel generic parser assocs command-line ranges literals namespaces arrays environment lexer prettyprint splitting classes.tuple colors hashtables continuations sequences.deep prettyprint.custom prettyprint.sections  words classes.predicate quotations accessors vectors classes.parser math math.functions sequences combinators combinators.smart unicode strings io io.styles io.files io.encodings.utf8 io.streams.string math.parser strings.parser ;
 IN: rix
 DEFER: lex-val
 DEFER: lex-until-semi
@@ -270,7 +270,7 @@ DEFER: unquote-scan
         { SYM: or $[ { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi or "bool" <val> ] <builtin> "preforms 'or' on two bools" desc ] }
         { SYM: nth $[ { SYM: list SYM: n } [ dup [ "n" get-value ] [ "list" get-value ] bi nth ] <builtin> "gets the nth element of a list" desc ] }
         { SYM: len $[ { SYM: list } [ dup "list" get-value length "number" <val> ] <builtin> "gets the length of a list" desc ] }
-        { SYM: map $[ { SYM: list SYM: func } [ dup [ "list" get-value ] [ "func" get-value* ] bi [ swap 2array push-tokens eval-until-one ] curry map "list" <val> ] <builtin>
+        { SYM: map $[ { SYM: list SYM: func } [ dup [ "list" get-value ] [ "func" get-value* ] bi [ swap 2array eval-tokens ] curry map "list" <val> ] <builtin>
                       "applies 'func' to each element in 'list', returning a new list made up of all the return values" desc ] }
         { SYM: fbody $[ { SYM: func } [ dup "func" get-value body>> ] <builtin> "gets the body of a function. primatives return [prim]" desc ] }
         { SYM: fparams $[ { SYM: func } [ dup "func" get-value param-names>> "list" <val> ] <builtin> "gets the params of a function" desc ] }
@@ -313,6 +313,9 @@ DEFER: unquote-scan
                           "constructs a variadic macro; see the description of 'consfn' for the difference between this and 'varimac'" desc ] }
         { SYM: letfn $[ { SYM: params SYM: body } [ make-func value>> push-token ] <builtin-macro>
                         "creates a function with params and a body and calls that function immediatly" desc ] }
+        { SYM: ^^ $[ { SYM: base SYM: power } [ dup [ "base" get-value ] [ "power" get-value ] bi ^ "number" <val> ] <builtin> "raises 'base' to the power 'power'" desc ] }
+        { SYM: mod $[ { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi mod "number" <val> ] <builtin> "gets the modulus of two numbers" desc ] }
+        { SYM: sqrt $[ { SYM: x } [ dup "x" get-value sqrt "number" <val> ] <builtin> "gets the square root of a number" desc ] }
         { SYM: prn $[ { SYM: val } [ dup "val" get-value* [ dup type>> "string" = [ value>> "symbol" <val> ] when pprint-rix-value "\n" write ] keep ] <builtin> "prints anything, inserting a newline afterwards" desc ] }
         { SYM: wrt $[ { SYM: val } [ dup "val" get-value* [ dup type>> "string" = [ value>> "symbol" <val> ] when pprint-rix-value ] keep  ] <builtin> "prints anything" desc ] }
         { SYM: pprn $[ { SYM: val } [ dup "val" get-value* [ pprint-rix-value "\n" write ] keep ] <builtin> "prints anything, leaving strings in their literal representation and inserting a newline afterwards" desc ] }
@@ -346,6 +349,8 @@ DEFER: unquote-scan
         { SYM: new-err $[ { SYM: str } [ dup "str" get-value \ eval-error boa "error" <val> ]  <builtin> "returns an error with the given string as a message" desc ]  }
         { SYM: try $[ { SYM: list SYM: catch } [ dup [ "catch" get-value* ] [ "list" get-value* ] bi [ nip eval-tokens ] [ "error" <val> "quote" <val> 3array >vector eval-tokens ] recover ] <builtin>
                       "evaluates the list. if there's an error, calls the function with the list and the error (in that order). errors automatically throw themselves when evaluated, so handle them carefully" desc ] }
+        { SYM: rng $[ { SYM: from SYM: to }
+                      [ dup [ "from" get-value ] [ "to" get-value ] bi [a..b] >vector [ "number" <val> ] map "list" <val> ] <builtin> "returns a list with numbers that go from 'from' to 'to', including both 'from' and 'to'" desc ]  }
         { SYM: prnted $[ { SYM: list } [ dup "list" get-value [ eval-tokens drop ] with-string-writer "string" <val> ]  <builtin> "runs 'list', returning a string containing everything that was printed during its running" desc ] }
         { SYM: assert= $[ { SYM: one SYM: two } [ dup [ "one" get-value* ] [ "two" get-value* ] bi [ = ] 2check [ drop ]
                                                    [ [ [ pprint-rix-value ] with-string-writer ] bi@ " != " prepend append "Assert failed: " prepend eval-error ] if ]
