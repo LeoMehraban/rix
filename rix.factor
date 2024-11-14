@@ -38,7 +38,7 @@ SYNTAX: GENR: scan-token dup [ "symbol" <val> ] bi@ ";" parse-tokens [ "symbol" 
 GENERIC: pprint-rix-value ( value -- )
 M: rix-value rix-eval ;
 M: rix-value pprint* "RIX:" text [ pprint-rix-value ] with-string-writer text ;
-CONSTANT: rix-version "0.02"
+CONSTANT: rix-version "0.02.1"
 : desc ( val desc -- val ) >>description ;
 >>
 
