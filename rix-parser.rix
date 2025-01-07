@@ -94,8 +94,8 @@ prn "test 2"
 parser: new-parser "potato";
 assert= (pop-result parse-word) "potato"
 prn "test 3"
-perser: new-parser "123";
+parser: new-parser "123";
 assert= (pop-result parse-number) 123
 prn "test 4"
-perser: new-parser "12a";
+parser: new-parser "12a";
 assert= (pop-result parse-number) fal
