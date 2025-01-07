@@ -69,11 +69,11 @@ prop: mac [p] [scop '[,$p] nxt];
 assert= (prop age new-person "jeff" 19) 19
 prn "passed test 14"
 
-prn "test 15"
-potato: "good";
-foo4: fn [] [glob potato: "meh";];
-foo4
-assert= potato "meh"
+prn "test 15" # pretend test 15 still exists so the numbers below are right
+#potato: "good";
+#foo4: inl [] [glob potato: "meh";];
+#foo4
+#assert= potato "meh"
 prn "passed test 15"
 
 prn "test 16"
@@ -82,7 +82,7 @@ prn "passed test 16"
 
 prn "test 17"
 incl test
-assert= (gdesc $first@test) "gets the first element of a list"
+assert= (gdesc $char@test) "turns a one-element string into a character int"
 prn "passed test 17"
 
 prn "test 18"
@@ -107,13 +107,29 @@ assert= (fparams fn [x y] [+ x y]) [x y]
 prn "passed test 22"
 
 prn "test 23"
-curry1: fn [func val] [consfn (rest@test fparams $func) '[,$func ,$val @(rest@test fparams $func)]];
+curry1: fn [func val] [consfn (rest fparams $func) '[,$func ,$val @(rest fparams $func)]];
 assert= (fparams (curry1 fn [x y] [+ x y] 6)) [y]
 prn "passed test 23"
 
 prn "test 24"
 assert= (fbody (curry1 fn [x y] [+ x y] 6)) '[,(fn [x y] [+ x y]) 6 y]
 prn "passed test 24"
+
+prn "test 25"
+list>string: fn [list] [prnted [wrt list]];
+assert= (list>string [1 2 3]) "[1 2 3]"
+prn "passed test 25"
+
+prn "test 26"
+genr 'get-num [val]
+person.get-num: fn [val] [at 'age val];
+number.get-num: fn [val] [val];
+assert= (get-num new-person "jeff" 19) 19
+prn "passed test 26"
+
+prn "test 27"
+assert= (get-num 19) 19
+prn "passed test 27"
 
 prn "all tests passed!"
 

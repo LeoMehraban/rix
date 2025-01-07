@@ -1,0 +1,15 @@
+# defines several helpful macros for general use
+
+exp dfn: desc "equal to name: fn [params] [body];" mac [name params body] '[set ,(quot $name) fn ,params ,body];
+exp dinl: desc "equal to name: inl [params] [body];" mac [name params body] '[set ,(quot $name) inl ,params ,body];
+exp dmac: desc "equal to name: mac [params] [body];" mac [name params body] '[set ,(quot $name) mac ,params ,body];
+exp dvari: desc "equal to name: vari [params] [body];" mac [name params body] '[set ,(quot $name) vari ,params ,body];
+exp dvarinl: desc "equal to name: varinl [params] [body];" mac [name params body] '[set ,(quot $name) varinl ,params ,body];
+exp dvarimac: desc "equal to name: varimac [params] [body];" mac [name params body] '[set ,(quot $name) varimac ,params ,body];
+
+exp tfn: desc "equal to typreq [types] fn [params] [body];" mac [types params body] '[typreq ,types fn ,params ,body];
+exp tinl: desc "equal to typreq [types] inl [params] [body];" mac [name params body] '[typreq ,types inl ,params ,body];
+exp tmac: desc "equal to typreq [types] mac [params] [body];" mac [name params body] '[typreq ,types mac ,params ,body];
+exp tvari: desc "equal to typreq [types] vari [params] [body];" mac [name params body] '[typreq ,types vari ,params ,body];
+exp tvarinl: desc "equal to typreq [types] varinl [params] [body];" mac [name params body] '[typreq ,types varinl ,params ,body];
+exp tvarimac: desc "equal to typreq [types] varimac [params] [body];" mac [name params body] '[typreq ,types varimac ,params ,body];

@@ -1,6 +1,4 @@
-exp first: desc "gets the first element of a list" fn [list] [nth list 0];
-exp second: desc "gets the second element of a list" fn [list] [nth list 1];
-exp rest: desc "gets all of the list apart from the first element" fn [list] [second decons list];
+exp second: desc "gets the second element of a list" fn [list] [first rest list];
 exp reduce*: desc "recursivally applies 'fun' to 'prev' and the first element of 'list', calling reduce* again with the result of that evaluation as 'prev', and the remainder of the list as 'list'" fn [prev list fun]
 	 [
 		if (> len list 0)

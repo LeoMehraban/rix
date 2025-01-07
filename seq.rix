@@ -1,0 +1,102 @@
+# seq:
+# defines a protocal for sequences, including strings and lists by default. the operations defined here can be used on anything that implements the genrs:
+# rst [seq] (gets all but the first element of a sequence)
+# fst [seq] (gets the first element of a sequence)
+# length [seq] (gets the length of a sequence)
+# sconcat [seq elt] 
+
+
+genexp 'rst [seq] # > seq
+genexp 'fst [seq] # > elt
+genexp 'all [seq] # > list
+genexp 'length [seq] # > number
+genexp 'sconcat [seq elt] # > seq
+genexp 'econcat [seq elt] # > seq
+
+exp revcons: desc "pushes the element 'elt' onto the end of 'lst', returning 'lst'" fn [elt lst] '[@lst ,elt];
+exp cons: desc "pushes the element 'elt' onto the beginning of 'lst', returning 'lst'" fn [elt lst] '[,elt @lst];
+
+exp list.fst: fn [list] [first list];
+exp list.rst: fn [list] [rest list];
+exp list.length: fn [list] [len list];
+exp list.sconcat: fn [list elt] [cons elt list];
+exp list.econcat: fn [list elt] [revcons elt list];
+
+exp string.fst: fn [str] [first (str>lst str)];
+exp string.rst: fn [str] [lst>str rest (str>lst str)];
+exp string.length: fn [str] [len (str>lst str)];
+exp string.sconcat: fn [elt str] [lst>str cons elt (str>lst str)];
+exp string.econcat: fn [elt str] [lst>str revcons elt (str>lst str)];
+
+
+
+exp second: desc "gets the second element of a list" fn [list] [fst rst list];
+
+exp third: desc "gets the third element of a list" fn [list] [fst rst rst list];
+
+iter**: fn [prev list fun]
+	[
+		if (and (> length list 0) (second prev))
+		[
+			iter** (fun (fst prev) fst list)
+			(rst list)
+			$fun
+		]
+		[fst prev]
+	];
+
+exp iter*: desc
+       "recursivly applies 'fun' to 'prev' and the first element of 'list'. 'fun' should return a list [result bool]. if that bool condition is true, calls iter* again with the result as 'prev' and the remainder of the list as 'list'"
+       fn [prev list fun]
+       [
+		iter** '[,prev tru] list $fun
+       ];
+
+
+
+exp reduce*: desc "recursivally applies 'fun' to 'prev' and the first element of 'list', calling reduce* again with the result of that evaluation as 'prev', and the remainder of the list as 'list'" fn [prev list fun]
+	 [
+		if (> length list 0)
+		[
+			reduce* (fun prev fst list) # the new prev is the result of calling the input function on the original prev and the first element of the list
+			(rst list) # the new list is the rest of the list
+			$fun # the $ syntax gets the value of something from the current namespace, but doesn't evaluate it afterwards. this allows for functions to be gotten from the namespace without being called
+		]
+		[prev] # return the final result
+	 ];
+
+
+exp reduce: desc "applies the binary operation in 'fun' to elements of 'list', first applying it to the first two elements, then applying the result of that to the next element, and so on" fn [list fun]
+    [
+	reduce* (fst list) (rst list) $fun
+    ];
+
+andall: vari [values] [reduce values $and];
+exp seq?: desc "checks if a value is a sequence" fn [val]
+    [
+    	  andall
+	  (imps? $rst val)
+	  (imps? $fst val)
+	  (imps? $length val)
+	  (imps? $sconcat val)
+	  (imps? $econcat val);
+    ];
+
+# 2 [0 1 2 3 4 5 6] > 1 [1 2 3 4 5 6] > 0 [2 3 4 5 6] > -1 [3 4 5 6]
+exp after: desc "gets all of the list after index n"  fn [n list]
+    [
+	if (>= n 0)
+	[after (- n 1) (rst list)]
+	[list]
+    ];
+
+exp iter: desc "calls iter* with 'prev' as the first element of 'list' and 'list' as the rest" fn [list fun]
+      [
+	iter* (fst list) (rst list) $fun
+      ];
+
+exp before: desc "gets all of the list before index n" fn [n list]
+	[
+		iter* [] list
+		fn [prev cur] [if (< (- length prev 1) (- n 1)) ['[,(econcat prev cur) tru]] ['[,prev fal]]]
+	];
