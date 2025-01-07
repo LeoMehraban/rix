@@ -7,6 +7,8 @@ to build rix, you need to have installed [factor](https://factorcode.org/). Then
 
 if you have a mac (maybe also a linux computer but I haven't checked), you can use the pre-built binary
 
+if you want to have the (very basic) standard library installed, then run ./install.sh. Maybe this works on Windows, but honestly I don't know
+
 ## so what is rix?
 
 rix is a very simple programming language inspired by LISP and Factor
