@@ -1,3 +1,4 @@
+# rix tests
 prn "test 1"
 assert= (+ 1 1) 2
 prn "passed test 1"
@@ -130,6 +131,14 @@ prn "passed test 26"
 prn "test 27"
 assert= (get-num 19) 19
 prn "passed test 27"
+
+prn "test 28"
+assert= (rdstr "Hello, World!\nGoodbye, World!" [rdln]) "Hello, World!"
+prn "passed test 28"
+
+prn "test 29"
+assert= (istream (fin "tests.rix" "utf8") [rdln]) "# rix tests"
+prn "passed test 29"
 
 prn "all tests passed!"
 

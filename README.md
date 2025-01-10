@@ -82,6 +82,7 @@ you can access stuff declared in modules with the `symbol@modulename` syntax, or
 | try | fn [list catch] | evaluates the list. if there's an error, calls the function with the list and the error (in that order). errors automatically throw themselves when evaluated, so handle them carefully |
 | number.< | fn [x y] | compares two numbers |
 | varinl | mac [params body] | creates a function with params and a body whose results may depend on the surrounding enviroment. the last named param is a list of every value between the penultimate param and a ; token |
+| istream | fn [stream code] | runs 'code' with the input stream remapped to 'stream' |
 | / | fn [x y] | divides two numbers |
 | glob | mac [dec] | takes a declaration and evaluates it within the global namespace |
 | mod | fn [x y] | gets the modulus of two numbers |
@@ -89,8 +90,10 @@ you can access stuff declared in modules with the `symbol@modulename` syntax, or
 | tapp | fn [val] | concatinates a list onto the tokenstack |
 | quot | fn [val] | quotes a value |
 | ifdo | fn [cond body] | if the boolean cond is true, evaluates the body |
+| fapp | fn [path encoding] | returns a file-appending output stream. supported values of 'encoding' are "ascii", "utf8" and "utf16" |
 | let | fn [hash code] | identical to scop, but with the parameters swapped |
 | genr | inl [sym params] | creates a new generic with the given name and params (and assigns it to that name within the global scope) |
+| fin | fn [path encoding] | returns a file-reading input stream. supported values of 'encoding' are "ascii", "utf8" and "utf16" |
 | prn | fn [val] | prints anything, inserting a newline afterwards |
 | fparams | fn [func] | gets the params of a function |
 | evl | fn [val] | evaluates 'val' |
@@ -98,6 +101,7 @@ you can access stuff declared in modules with the `symbol@modulename` syntax, or
 | rest | fn [list] | returns all of the list but the first element |
 | vari | mac [params body] | creates a function with params and a body. the last named param is a list of every value between the penultimate param and a ; token |
 | new-err | fn [str] | returns an error with the given string as a message |
+| os | fn [] | gets the current operating system |
 | - | fn [x y] | subtracts two numbers |
 | setat | fn [key value hash] | sets 'value' at 'key' within 'hash' |
 | rdstr | fn [string code] | runs 'code' in an enviroment with the given string as an input stream, meaning that within 'code', (for example) every 'rdln' reads a line from the stream |
@@ -105,6 +109,7 @@ you can access stuff declared in modules with the `symbol@modulename` syntax, or
 | map | fn [list func] | applies 'func' to each element in 'list', returning a new list made up of all the return values |
 | suquot | fn [val] | makes a value a splice-unquote |
 | tpop | fn [] | pops from the tokenstack. should mainly be used with macros, as using with functions or inline functions may provide unexpected results |
+| args | fn [] | gets command line arguments. the first element is the name of the rix file when run with 'rix file.rix' |
 | rdln | fn [] | reads a line from the input stream |
 | or | fn [x y] | preforms 'or' on two bools |
 | consvari | fn [params body] | constructs a variadic function; see the description of 'consfn' for the difference between this and 'vari' |
@@ -124,10 +129,12 @@ you can access stuff declared in modules with the `symbol@modulename` syntax, or
 | varimac | mac [params body] | creates a function with params and a body that returns either a list or a single value that is pushed onto the token array. the last named param is a list of every token between the penultimate param and a ; token |
 | rdch | fn [] | reads a single character from the input stream |
 | gdesc | fn [value] | gets the description of a value and returns it |
+| fout | fn [path encoding] | returns a file-writing (overrides current file contents) output stream. supported values of 'encoding' are "ascii", "utf8" and "utf16" |
 | typreq | fn [list func] | sets a list of required types for this function. 'any' means any type can be inputted, and 'callable' means that functions, inlines, macros, variadics etc. can all be used |
 | consmac | fn [params body] | constructs a macro; see the description of 'consfn' for the difference between this and 'mac' |
 | > | genr '> [x y] | No description |
 | genexp | inl [sym params] | creates a new generic with the given name and params, exports it, and assigns it to that name within the global scope |
 | typ | fn [val type] | sets the type of the value to the given string type. note that sometimes this will cause errors because the types are incompatible (such as if you set a number to type 'symbol') |
+| ostream | fn [stream code] | runs 'code' with the output stream remapped to 'stream' |
 | fn | mac [params body] | creates a function with params and a body |
 | consinl | fn [params body] | constructs an inline function; see the description of 'consfn' for the difference between this and 'inl' |
