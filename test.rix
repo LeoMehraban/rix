@@ -1,3 +1,7 @@
+
+lst>str: fn [lst] [cast lst typ string];
+str>lst: fn [str] [cast str typ list];
+
 exp second: desc "gets the second element of a list" fn [list] [first rest list];
 exp reduce*: desc "recursivally applies 'fun' to 'prev' and the first element of 'list', calling reduce* again with the result of that evaluation as 'prev', and the remainder of the list as 'list'" fn [prev list fun]
 	 [
@@ -35,15 +39,15 @@ exp after: desc "gets all of the list after index n"  fn [n list]
 	[list]
     ];
 
-exp curry1: desc "returns a new function identical to 'func', but with 'val' as the first parameter" fn [func val]
-	[
-		consfn (rest fparams $func) # gets a list of all but the first parameter
-		'[,$func ,$val @(rest fparams $func)] # makes a new func body. if 'func' was fn [x y] [+ x y], and 'val' was 6 then this new body would be [fn [x y] [+ x y] 6 y]
-	];
-
 exp curry: desc "returns a new function identical to 'func', but with its first parameters filled in with the values in 'vals'" vari [func vals]
     [
 	consfn (after (- len vals 1) (fparams $func))
 	'[,$func @vals @(after (- len vals 1) (fparams $func))]
     ];
+
+exp curry1: desc "returns a new function identical to 'func', but with 'val' as the first parameter" fn [func val]
+	[
+		consfn (rest fparams $func) # gets a list of all but the first parameter
+		'[,$func ,$val @(rest fparams $func)] # makes a new func body. if 'func' was fn [x y] [+ x y], and 'val' was 6 then this new body would be [fn [x y] [+ x y] 6 y]
+	];
 

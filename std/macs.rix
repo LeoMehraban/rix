@@ -1,4 +1,5 @@
 # defines several helpful macros for general use
+incl seq
 
 exp dfn: desc "equal to name: fn [params] [body];" mac [name params body] '[set ,(quot $name) fn ,params ,body];
 exp dinl: desc "equal to name: inl [params] [body];" mac [name params body] '[set ,(quot $name) inl ,params ,body];
@@ -8,8 +9,17 @@ exp dvarinl: desc "equal to name: varinl [params] [body];" mac [name params body
 exp dvarimac: desc "equal to name: varimac [params] [body];" mac [name params body] '[set ,(quot $name) varimac ,params ,body];
 
 exp tfn: desc "equal to typreq [types] fn [params] [body];" mac [types params body] '[typreq ,types fn ,params ,body];
-exp tinl: desc "equal to typreq [types] inl [params] [body];" mac [name params body] '[typreq ,types inl ,params ,body];
-exp tmac: desc "equal to typreq [types] mac [params] [body];" mac [name params body] '[typreq ,types mac ,params ,body];
-exp tvari: desc "equal to typreq [types] vari [params] [body];" mac [name params body] '[typreq ,types vari ,params ,body];
-exp tvarinl: desc "equal to typreq [types] varinl [params] [body];" mac [name params body] '[typreq ,types varinl ,params ,body];
-exp tvarimac: desc "equal to typreq [types] varimac [params] [body];" mac [name params body] '[typreq ,types varimac ,params ,body];
+exp tinl: desc "equal to typreq [types] inl [params] [body];" mac [types params body] '[typreq ,types inl ,params ,body];
+exp tmac: desc "equal to typreq [types] mac [params] [body];" mac [types params body] '[typreq ,types mac ,params ,body];
+exp tvari: desc "equal to typreq [types] vari [params] [body];" mac [types params body] '[typreq ,types vari ,params ,body];
+exp tvarinl: desc "equal to typreq [types] varinl [params] [body];" mac [types params body] '[typreq ,types varinl ,params ,body];
+exp tvarimac: desc "equal to typreq [types] varimac [params] [body];" mac [types params body] '[typreq ,types varimac ,params ,body];
+symbol>list: fn [sym] [cast (ucast $sym typ string) typ list];
+list>symbol: fn [list] [ucast (cast list typ string) typ symbol];
+add-new-prefix: fn [symbol] [cast '[@(cast "new-" typ list) @(cast $symbol typ list)] typ symbol];
+params-to-hash: fn [params] [reduce* { } params fn [hash param] [setat $param (uquot $param) hash]];
+
+exp struct: desc "defines a struct type with fields 'params' and name 'name'. does not define getters or setters" mac [name params]
+    	    '[
+		set ,(quot add-new-prefix $name) fn ,params [ucast ,(quot params-to-hash params) typ ,$name]
+    	    ];

@@ -13,8 +13,8 @@ genexp 'length [seq] # > number
 genexp 'sconcat [seq elt] # > seq
 genexp 'econcat [seq elt] # > seq
 
-exp revcons: desc "pushes the element 'elt' onto the end of 'lst', returning 'lst'" fn [elt lst] '[@lst ,elt];
-exp cons: desc "pushes the element 'elt' onto the beginning of 'lst', returning 'lst'" fn [elt lst] '[,elt @lst];
+exp revcons: desc "pushes the element 'elt' onto the end of 'lst', returning 'lst'" typreq [typ any typ list] fn [elt lst] '[@lst ,elt];
+exp cons: desc "pushes the element 'elt' onto the beginning of 'lst', returning 'lst'" typreq [typ any typ list] fn [elt lst] '[,elt @lst];
 
 exp list.fst: fn [list] [first list];
 exp list.rst: fn [list] [rest list];

@@ -1,144 +1,188 @@
 # rix tests
-prn "test 1"
+prn "test 1: addition"
 assert= (+ 1 1) 2
 prn "passed test 1"
 
-prn "test 2"
+prn "test 2: variables"
 x: 5;
 assert= x 5
 prn "passed test 2"
 
-prn "test 3"
+prn "test 3: re-assigning variables"
 x: 6;
 assert= x 6
 prn "passed test 3"
 
-prn "test 4"
+prn "test 4: functions"
 foo1: fn [x y] [+ x y];
 assert= (foo1 1 1) 2
 prn "passed test 4"
 
-prn "test 5"
+prn "test 5: inline functions"
 y: 10;
 foo2: inl [x] [+ x y];
 assert= (foo2 5) 15
 prn "passed test 5"
 
-prn "test 6"
+prn "test 6: inline functions pt 2"
 y: 11;
 assert= (foo2 5) 16
 prn "passed test 6"
 
-prn "test 7"
+prn "test 7: closures"
 y: 10;
 foo3: fn [x] [+ x y];
 assert= (foo3 5) 15
 prn "passed test 7"
 
-prn "test 8"
+prn "test 8: closures pt 2"
 y: 11;
 assert= (foo3 5) 15
 prn "passed test 8"
 
-prn "test 9"
+prn "test 9: fib numbers"
 fib: fn [n] [if (<= n 1) [1] [+ fib (- n 1) fib (- n 2)]];
 assert= (fib 6) 13
 prn "passed test 9"
 
-prn "test 10"
+prn "test 10: the comb generic"
 number.comb: fn [x y] [+ x y];
-string.comb: fn [x y] [lst>str '[@(str>lst x) @(str>lst y)]];
+string.comb: fn [x y] [cast '[@(cast x typ list) @(cast y typ list)] typ string];
 assert= (comb 1 1) 2
 prn "passed test 10"
 
-prn "test 11"
+prn "test 11: the comb generic pt 2"
 assert= (comb "Hello, " "world!") "Hello, world!"
 prn "passed test 11"
 
-prn "test 12"
+prn "test 12: first-order functions and map"
 assert= (map [1 2 3] fn [x] [+ x 1]) [2 3 4]
 prn "passed test 12"
 
-prn "test 13"
-new-person: fn [name age] [typ '{name ,name age ,age} "person"];
+prn "test 13: types and prettyprinting"
+new-person: fn [name age] [ucast '{name ,name age ,age} typ person];
 person.prn*: fn [person] [wrt (at 'name person) wrt ":" wrt (at 'age person)];
 assert= (prnted [prn* new-person "jeff" 19]) "jeff:19"
 prn "passed test 13"
 
-prn "test 14"
+prn "test 14: macros"
+scop: fn [code scope] [let scope code];
 prop: mac [p] [scop '[,$p] nxt];
 assert= (prop age new-person "jeff" 19) 19
 prn "passed test 14"
 
-prn "test 15" # pretend test 15 still exists so the numbers below are right
-#potato: "good";
-#foo4: inl [] [glob potato: "meh";];
-#foo4
-#assert= potato "meh"
+prn "test 15: globals"
+potato: "good";
+foo4: inl [] [glob potato: "meh";];
+foo4
+assert= potato "meh"
 prn "passed test 15"
 
-prn "test 16"
+prn "test 16: basic error handling"
 assert= (prnted [try [err "Hello" "goodbye"] fn [_ error] [wrt $error]]) "ERROR \"Hello\""
 prn "passed test 16"
 
-prn "test 17"
+prn "test 17: modules"
 incl test
 assert= (gdesc $char@test) "turns a one-element string into a character int"
 prn "passed test 17"
 
-prn "test 18"
-assert= (reduce@test [1 2 3] $+) 6
+prn "test 18: things imported from modules"
+assert= (reduce [1 2 3] $+) 6
 prn "passed test 18"
 
-prn "test 19"
-sum-all: vari [xs] [reduce@test xs $+];
+prn "test 19: variadic functions"
+sum-all: vari [xs] [reduce xs $+];
 assert= (sum-all 1 2 3;) 6
 prn "passed test 19"
 
-prn "test 20"
+prn "test 20: variadic functions pt 2"
 assert= (sum-all 1 1 2 3;) 7
 prn "passed test 20"
 
-prn "test 21"
+prn "test 21: function introspection"
 assert= (fbody fn [x y] [+ x y]) [+ x y]
 prn "passed test 21"
 
-prn "test 22"
+prn "test 22: function introspection pt 2"
 assert= (fparams fn [x y] [+ x y]) [x y]
 prn "passed test 22"
 
-prn "test 23"
+prn "test 23: consfn"
 curry1: fn [func val] [consfn (rest fparams $func) '[,$func ,$val @(rest fparams $func)]];
 assert= (fparams (curry1 fn [x y] [+ x y] 6)) [y]
 prn "passed test 23"
 
-prn "test 24"
+prn "test 24: fbody and curry1"
 assert= (fbody (curry1 fn [x y] [+ x y] 6)) '[,(fn [x y] [+ x y]) 6 y]
 prn "passed test 24"
 
-prn "test 25"
-list>string: fn [list] [prnted [wrt list]];
-assert= (list>string [1 2 3]) "[1 2 3]"
+prn "test 25: prnted and prettyprinting"
+pprint-list: fn [list] [prnted [wrt list]];
+assert= (pprint-list [1 2 3]) "[1 2 3]"
 prn "passed test 25"
 
-prn "test 26"
+prn "test 26: custom generics"
 genr 'get-num [val]
 person.get-num: fn [val] [at 'age val];
 number.get-num: fn [val] [val];
 assert= (get-num new-person "jeff" 19) 19
 prn "passed test 26"
 
-prn "test 27"
+prn "test 27: custom generics pt 2"
 assert= (get-num 19) 19
 prn "passed test 27"
 
-prn "test 28"
+prn "test 28: rdln"
 assert= (rdstr "Hello, World!\nGoodbye, World!" [rdln]) "Hello, World!"
 prn "passed test 28"
 
-prn "test 29"
+prn "test 29: file io"
 assert= (istream (fin "tests.rix" "utf8") [rdln]) "# rix tests"
 prn "passed test 29"
+
+prn "test 30: complex type system"
+incl std.seq
+assert= (typ? typ seq [1 2 3]) tru
+prn "passed test 30"
+
+prn "test 31: struct macro"
+incl std.macs
+struct dude [name age]
+assert= (prop age new-dude "jeff" 19) 19
+prn "passed test 31"
+
+prn "test 32: continuations"
+testfn: fn [x1 x2] [let '{x ,x1} [let '{x ,x2} [callcc fn [cont] [if (and (< x 6) (>= (up cont 'x) 6)) [upret cont nil] [ret cont nil]] x]]];
+assert= (testfn 6 5) 6
+prn "passed test 32"
+
+prn "test 33: continuations pt 2"
+assert= (testfn 6 9) 9
+prn "passed test 33"
+
+prn "test 34: continuations pt 3"
+assert= (testfn 3 5) 5
+prn "passed test 34"
+
+prn "test 35: continuations pt 4"
+testfn2: fn [x1 x2] [letfn [x] [letfn [x] [callcc fn [cont] [if (and (< x 6) (>= (up cont 'x) 6)) [upret cont nil] [ret cont nil]] x] x2] x1];
+assert= (testfn2 6 5) 6
+prn "passed test 35"
+
+prn "test 36: continuations pt 5"
+assert= (testfn2 6 9) 9
+prn "passed test 36"
+
+prn "test 37: continuations pt 6"
+assert= (testfn2 3 5) 5
+prn "passed test 37"
+
+# for the future
+# prn "test 38: custom evaluation"
+# person.eval: mac [person] '[prop age ,(quot $person)];
+# assert= (new-person "jeff" 19) 19
+# prn "passed test 39"
 
 prn "all tests passed!"
 
