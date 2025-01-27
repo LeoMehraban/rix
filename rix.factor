@@ -1,35 +1,26 @@
 ! Copyright (C) 2024 Your name.
 ! See https://factorcode.org/license.txt for BSD license
-USING: kernel generic parser make assocs command-line ranges literals tools.continuations namespaces serialize arrays environment lexer system alien.libraries prettyprint splitting classes.tuple colors hashtables continuations sequences.deep prettyprint.custom prettyprint.sections  words classes.predicate quotations accessors vectors classes.parser math math.functions sequences combinators classes combinators.smart unicode strings io io.styles io.files io.encodings.utf8 io.streams.string math.parser strings.parser alien.libraries.finder alien.c-types alien io.encodings.ascii io.encodings.utf16 ;
+USING: kernel generic parser make assocs command-line ranges literals tools.continuations namespaces serialize arrays environment lexer system prettyprint splitting classes.tuple colors hashtables continuations sequences.deep prettyprint.custom prettyprint.sections  words classes.predicate quotations accessors vectors classes.parser math math.functions sequences combinators classes combinators.smart unicode strings io io.styles io.files io.encodings.utf8 io.streams.string math.parser strings.parser io.encodings.ascii io.encodings.utf16 io.pathnames io.directories rix.lexer rix.common ;
 IN: rix
 
 
-ERROR: lexer-error msg ;
-ERROR: eval-error msg ;
+
+
 <PRIVATE
 
-DEFER: lex-val
-DEFER: lex-until-semi
+
 DEFER: callstack-pop
 <<
 GENERIC: pprint-rix-value ( value -- )
-GENERIC: evaluates-to-something? ( value -- ? )
+GENERIC: underlying-rix ( value -- rix-hash )
+GENERIC: evaluates-to-something? ( evaluator value -- evaluator ? )
 TUPLE: rix-env parent bindings ;
 TUPLE: callstack-element name params func ;
-TUPLE: rix-value value type description ;
-M: rix-value evaluates-to-something? drop f ;
-TUPLE: dec symbol expr ;
-TUPLE: inl types param-names quot body ;
-TUPLE: module-call symbol module ;
-TUPLE: func types env param-names quot body ;
-TUPLE: genr name params ;
-: <val> ( value type -- rix-value ) "No description" rix-value boa ;
-SYNTAX: SYM: scan-token "symbol" <val> suffix! ;
-SYNTAX: TYP: scan-token "type" <val> suffix! ;
+
 
 >>
 
-TUPLE: rix-lexer str pos ;
+
 <<
 DEFER: include-file
 DEFER: eval-until-one
@@ -47,99 +38,9 @@ SYNTAX: GENR: scan-token dup [ "symbol" <val> ] bi@ ";" parse-tokens [ "symbol" 
 : <func> ( types param-names quot -- func ) [ drop ] prepend f H{ } clone rix-env boa -rot V{ SYM: prim } "list" <val> func boa "func" <val> ;
 
 M: rix-value pprint* [ "RIX:" text [ pprint-rix-value ] with-string-writer text ] [ "ERROR:" text nip class-of name>> text ] recover ;
-CONSTANT: rix-version "0.04.0"
+CONSTANT: rix-version "0.05.0"
 : desc ( val desc -- val ) >>description ;
 >>
-
-: when% ( quot -- ? ) [ f ] if ; inline
-: dwhen% ( quot -- ? ) [ drop f ] if ; inline
-: when*% ( quot -- ? ) [ f ] if* ; inline
-
-: seq-to-pairs ( seq -- pairs ) dup length 0 > [ unclip V{  } clone swap suffix! [ over last vector?
-                                                                                   [ over last length 2 <= [ suffix! ] [ [ unclip-last ] dip suffix! suffix! ] if ] [ [ unclip-last ] dip 2array >vector suffix! ] if ] reduce ] when ;
-: hash-to-seq ( hash -- seq ) V{ } clone [ [ suffix! ] bi@ ] assoc-reduce ;
-
-: current ( lexer -- char )  [ pos>> ] [ str>> ] bi nth ;
-: writech ( char -- ) 1string write ;
-: lexer-next ( lexer -- lexer char/f ) dup [ current ] [ [ 1 + ] change-pos ] bi [ pos>> ] [ str>> length ] bi < [ drop f ] unless ;
-: valid-length? ( lexer -- lexer ? ) dup [ str>> length ] [ pos>> 1 + ] bi >= ;
-: ?lexer-next ( lexer -- lexer char ? ) dup [ current ] [ [ 1 + ] change-pos ] bi [ pos>> ] [ str>> length ] bi < ;
-: match-and-advance ( lexer char -- lexer matched? ) over valid-length? nip [ over current = [ [ lexer-next drop ] when ] keep ] dwhen% ;
-: reset-if ( lexer quot: ( ..a lexer -- ..b lexer parsed? ) -- ..b lexer parsed? ) over clone [ call swap ] dip [ ? ] keepdd ; inline
-: skip-whitespace ( lexer -- lexer ) valid-length? [ [ dup current blank? [ lexer-next ] when% ] loop ] when ;
-: skip-non-newline-whitespace ( lexer -- lexer ) valid-length? [ [ dup current [ blank? ] [ CHAR: \n = not ] bi and [ lexer-next ] when% ] loop ] when ;
-: valid-char? ( char -- ? ) [ { [ CHAR: ( eq? ] [ CHAR: ) eq? ] [ CHAR: { eq? ] [ CHAR: } eq? ]  [ CHAR: [ eq? ] [ CHAR: ] eq? ] [ CHAR: ; eq? ] [ CHAR: @ eq? ] [ CHAR: $ eq? ] } cleave ] output>array [  ] any? not ;
-: lex-comment ( lexer -- lexer ) CHAR: # match-and-advance [ [ valid-length? [ dup current CHAR: \n = not [ lexer-next ] when% ] when% ] loop ] when ;
-: lex-comment? ( lexer -- lexer ? ) CHAR: # match-and-advance [ [ valid-length? [ dup current CHAR: \n = not [ lexer-next ] when% ] when% ] loop t ] when% ;
-: skip-useless ( lexer -- lexer ) [ valid-length? [ skip-whitespace valid-length? [ lex-comment? ] when% ] when% ] loop ;
-: lex-word ( lexer -- lexer word/f ) t [ [ [ valid-length? [ dup current [ valid-char? ] [ blank? not ] bi and ] when% ] when% ] [ ?lexer-next [ writech ] dip ] while ] with-string-writer dup empty? [ drop f ] when ;
-: lex-number ( lexer -- lexer number/f ) [ lex-word [ dec> [ "number" <val> ] when*% ] when*% ] reset-if ;
-: lex-module-call ( lexer -- lexer module-call/f ) [ lex-word [ swap CHAR: @ match-and-advance [ lex-word [ swapd [ "symbol" <val> ] bi@ module-call boa "module-call" <val> ] [ nip f ] if* ] [ nip f ] if ] when*% ] reset-if ;
-: lex-resolve ( lexer -- lexer resolve/f ) CHAR: $ match-and-advance [ [ lex-module-call [ value>> "module-resolve" <val> ]  [ lex-word [ "resolve" <val> ] when*% ] if* ] reset-if ] when%  ;
-: lex-semi ( lexer -- lexer semi/f ) CHAR: ; match-and-advance [ t "semicolon" <val> ] when% ;
-: lex-dec ( lexer -- lexer dec/f ) [ lex-word [ unclip-last CHAR: : = [ swap lex-until-semi swapd dec boa "dec" <val> ] dwhen% ] when*% ] reset-if ;
-: lex-list ( lexer -- lexer list/f ) 91 match-and-advance [ V{  } clone swap [ skip-useless 93 match-and-advance not ] [ lex-val swapd suffix! swap ] while swap "list" <val> ] when% ;
-: lex-hash ( lexer -- lexer hash/f ) CHAR: { match-and-advance [ V{  } clone swap [ skip-useless CHAR: } match-and-advance not ] [ lex-val swapd suffix! swap ] while swap seq-to-pairs parse-hashtable "hash" <val> ] when% ;
-: lex-symbol ( lexer -- lexer symbol/f ) lex-word [ dup [ "tru" = ] [ "fal" = ] bi or [ "tru" = "bool" <val> ]  [ dup "nil" = [ drop f "nil" <val> ] [ "symbol" <val> ] if ] if ] when*% ;
-: lex-quote ( lexer -- lexer quote/f ) CHAR: ' match-and-advance [ lex-val "quote" <val> ] when% ;
-: lex-unquote ( lexer -- lexer quote/f ) CHAR: , match-and-advance [ lex-val "unquote" <val> ] when% ;
-: lex-splice-unquote ( lexer -- lexer quote/f ) CHAR: @ match-and-advance [ lex-val "splice-unquote" <val> ] when% ;
-: char-or-escape ( lexer -- lexer char )
-    92 match-and-advance [ lexer-next ] dip [ escape ] when ;
-: lex-parens ( lexer -- lexer parens/f ) 40 match-and-advance [ V{  } clone swap [ 41 match-and-advance not ] [ lex-val swapd suffix! swap ] while swap "parens" <val> ] when% ;
-: lex-string ( lexer -- lexer string/f )
-    34 match-and-advance [
-        [
-            [ 34 match-and-advance not ]
-            [ char-or-escape writech ] while
-        ] with-string-writer "string" <val>
-    ] when% ;
-
-: lex-val ( lexer -- lexer val ) 
-    skip-useless
-    lex-quote
-    [ lex-unquote ] unless*
-    [ lex-splice-unquote ] unless*
-    [ lex-number ] unless*
-    [ lex-dec ] unless*
-    [ lex-string ] unless*
-    [ lex-list ] unless*
-    [ lex-module-call ] unless*
-    [ lex-resolve ] unless*
-    [ lex-parens ] unless*
-    [ lex-symbol ] unless*
-    [ lex-semi ] unless*
-    [ lex-hash ] unless*
-    [ valid-length? not ] unless*
-    [ skip-useless ] dip
-    [ "Invalid expression" lexer-error ] unless*
-    ;
-
-: lex-until-semi ( lexer -- lexer expr ) 
-    V{ } clone swap [
-        skip-useless
-        lex-quote
-        [ lex-unquote ] unless*
-        [ lex-splice-unquote ] unless*
-        [ lex-number ] unless*
-        [ lex-dec ] unless*
-        [ lex-string ] unless*
-        [ lex-list ] unless*
-        [ lex-module-call ] unless*
-        [ lex-resolve ] unless*
-        [ lex-parens ] unless*
-        [ lex-symbol ] unless*
-        [ lex-hash ] unless*
-        [ skip-useless ] dip
-        [ valid-length? [ dup current CHAR: ; = not ] [ t ] if [ "Invalid expression" lexer-error ] when f ] unless*
-        [ swapd suffix! swap ] when*
-        CHAR: ; match-and-advance not
-    ] loop
-    swap
- ;
-
-: can-continue? ( lexer -- lexer ? ) skip-whitespace lex-comment valid-length? ;
-: lex-str ( str -- tokens ) 0 rix-lexer boa V{  } clone swap [ lex-val dup t = [ drop f ] [ swapd suffix! swap can-continue? ] if ] loop drop ;
 
 
 : <env> ( parent -- env ) clone H{  } clone rix-env boa ;
@@ -147,7 +48,24 @@ CONSTANT: rix-version "0.04.0"
 : env-get ( value env -- value/f ) 2dup bindings>> at [ 2nip ] [ parent>> [ env-get ] [ drop f ] if* ] if* ;
 : env-set ( symbol value env -- env ) [ clone ] dip [ [ set-at ] keep ] 2with change-bindings ;
 TUPLE: evaluator tokens to-export current-namespace results extra-tokens callstack last-name ;
+: (env>seq) ( env seq -- seq ) over parent>> [ bindings>> prefix [ parent>> ] dip (env>seq) ] [ nip ] if* ;
 
+: env>seq ( env -- seq ) dup bindings>> 1vector (env>seq) >array ;
+M: evaluator underlying-rix [ {
+            [ tokens>> [ "list" <val> ] [ f "nil" <val> ] if* SYM: tokens ,, ]
+            [ to-export>> [ "hash" <val> ] [ f "nil" <val> ] if* SYM: to-export ,, ]
+            [ current-namespace>> [ env>seq "list" <val> ] [ f "nil" <val> ] if* SYM: current-env ,, ]
+            [ results>> [ "list" <val> ] [ f "nil" <val> ] if* SYM: results ,, ]
+            [ extra-tokens>> [ [ "list" <val> ] map "list" <val> ] [ f "nil" <val> ] if*  SYM: extra-tokens ,, ]
+            [ callstack>> [ [ [ params>> ] [ name>> ] bi prepend "parens" <val> ] map "list" <val> ] [ f "nil" <val> ] if* SYM: callstack ,, ]
+            [ last-name>> [ f "nil" <val> ] unless* SYM: last-name ,, ]
+        } cleave ] H{ } make ;
+: valid-evaluation-function? ( val -- ? ) [ dup type>> "func" = [ value>> param-names>> length 2 = ] dwhen% ] when*% ;
+
+M: rix-value evaluates-to-something?
+    type>> ".eval" append "symbol" <val> over current-namespace>> env-get valid-evaluation-function?
+    ;
+DEFER: rix-eval
 : get-value ( evaluator string -- value ) "symbol" <val> swap current-namespace>> env-get value>> ;
 : get-value* ( evaluator string -- value ) "symbol" <val> swap current-namespace>> env-get ;
 : unclip! ( sequence -- rest first ) [ first ] [ 0 swap remove-nth! ] bi swap  ;
@@ -161,7 +79,7 @@ TUPLE: evaluator tokens to-export current-namespace results extra-tokens callsta
 : pop-results ( eval -- eval result ) [ [ pop ] keep ] change-results swap ;
 : <evaluator> ( tokens global -- evaluator ) H{  } clone swap V{  } dup dup [ clone ] tri@ "<anon>" evaluator boa ;
 : callstack-push ( evaluator name params func -- ) callstack-element boa [ over push ] curry change-callstack drop ;
-: callstack-pop ( evaluator -- evaluator ) [ dup pop drop ] change-callstack ;
+: callstack-pop ( evaluator -- evaluator ) [ dup length 0 = [ dup pop drop ] unless ] change-callstack ;
 : print-callstack ( evaluator -- evaluator ) "callstack: " print dup callstack>> reverse [ "(" write
                                                                                              [ name>> write ]
                                                                                              [ params>> [ " " write pprint-rix-value ] each ]
@@ -189,6 +107,28 @@ M: rix-sequence clone [ value>> clone ] [ type>> clone ] bi <val>  ;
 INSTANCE: rix-sequence sequence
 DEFER: rix-eval
 
+M: rix-decl underlying-rix [ symbol>> "symbol" <val> SYM: symbol associate ] [ expr>> "list" <val> SYM: expr associate ] bi assoc-union "hash" <val> ;
+M: module-call underlying-rix [ symbol>> SYM: symbol associate ] [ module>> SYM: module associate ] bi assoc-union ;
+M: func underlying-rix [
+        {
+            [ types>> "list" <val> SYM: types ,, ]
+            [ env>> env>seq "list" <val> SYM: env ,, ]
+            [ param-names>> "list" <val> SYM: param-names ,, ]
+            ! [ quot>> SYM: quot ,, ]
+            [ body>> "list" <val> SYM: body ,, ]
+        } cleave
+    ] H{ } make ;
+M: inl underlying-rix [
+        {
+            [ types>> "list" <val> SYM: types ,, ]
+            [ param-names>> "list" <val> SYM: param-names ,, ]
+            ! [ quot>> SYM: quot ,, ]
+            [ body>> "list" <val> SYM: body ,, ]
+        } cleave
+    ] H{ } make ;
+M: genr underlying-rix [ name>> SYM: name associate ] [ params>> "list" <val> SYM: params associate ] bi assoc-union ;
+
+
 : eval-next ( evaluator -- evaluator result ) 
     pop-token [ rix-eval ] keep type>> "symbol" = [ over "<anon>" >>last-name drop ] unless ;
 
@@ -204,17 +144,16 @@ DEFER: rix-eval
     {
         "func"
         "inl"
-        "mac"
-        "vari"
-        "varimac"
-        "varinl"
+        "macro"
+        "variadic"
+        "variadic-macro"
+        "inline-variadic"
     } [ = ] with any? ;
 
 
 : eval-one ( evaluator token -- evaluator result ) push-token eval-until-one ;
 
 : flatten-flagged ( array -- array ) [ dup sequence? [ dup [ clone V{ } clone >>value [ dup flagged? [ val>> dup sequence? [ append ] [ suffix ] if ] [ suffix ] if ] reduce ] keep like ] when ] deep-map ;
-
 
 DEFER: unquote-scan
 
@@ -223,7 +162,7 @@ DEFER: unquote-scan
 : (unquote-scan) ( evaluator val -- val )
     {
         { [ dup type>> "unquote" = ] [ value>> eval-one nip ] }
-        { [ dup type>> "splice-unquote" = ] [ value>> eval-one flagged boa nip ] }
+        { [ dup type>> "splice" = ] [ value>> eval-one flagged boa nip ] }
         { [ dup type>> "hash" = ] [ hash-unquote-scan nip ] }
         [ nip ]
     } cond
@@ -249,8 +188,7 @@ DEFER: unquote-scan
 : eval-tokens ( evaluator tokens -- evaluator result )
     over results>> clone [ [ dup tokens>> [ suffix! ] curry change-extra-tokens V{ } clone >>tokens ] dip
                            push-tokens eval-all extra-tokens>tokens  ] dip [ [ last ] dip ] curry change-results swap ;
-: eval-tokens-results ( evaluator tokens -- evaluator results )
-    over results>> clone [ [ dup tokens>> [ suffix! ] curry change-extra-tokens V{ } clone >>tokens ] dip
+    over results>> clone [ [ V{ } clone >>results dup tokens>> [ suffix! ] curry change-extra-tokens V{ } clone >>tokens ] dip
                            push-tokens eval-all extra-tokens>tokens dup results>> ] dip swap [ >>results ] dip ;
 : eval-until-semi ( evaluator -- evaluator results ) V{ } clone [ over can-cont? [ swap pop-token [ type>> "semicolon" = not ] 1check [ eval-one swap [ suffix! ] dip t ] [ drop f ] if swapd ] when% ] loop  ;
 
@@ -270,7 +208,7 @@ DEFER: unquote-scan
     [ 2drop t ]
     [
         "?" append "symbol" <val> swap [ over current-namespace>> env-get ] dip over
-        [ over type>> "func" = [ dup evaluates-to-something? [ "quote" <val> ] when 2array eval-tokens value>> ] [ 2drop f ] if ] [ 2drop f ] if
+        [ over type>> "func" = [ [ swapd evaluates-to-something? swapd ] keep swap [ "quote" <val> ] when 2array eval-tokens value>> ] [ 2drop f ] if ] [ 2drop f ] if
     ] if ;
 
 : typecheck ( eval params types -- eval )
@@ -321,16 +259,12 @@ M: func clone { [ types>> ] [ env>> env-deep-clone ] [ param-names>> ] [ quot>> 
 
 : eval-tokens-with-env-up ( evaluator tokens -- evaluator result ) swap [ swap eval-tokens swap ] with-env-up swap ;
 
-: get-paths ( -- paths ) "RIX-PATH" os-env [ ":" split ] [ { "~/.rix" } ] if* "." prefix ;
 
-: (find-file-path) ( module-name -- incomplete-file-path ) "." "/" replace "|" "../" replace ".rix" append "/" prepend ;
+: compress-env ( env -- env ) dup parent>> [ compress-env swap [ bindings>> ] bi@ assoc-union f swap rix-env boa ] when* ;
 
-: find-file-path ( module-name -- file-path ) (find-file-path) get-paths swap [ append ] curry map [ file-exists? ] find nip [ "Unknown module" eval-error f ] unless*  ;
-
-! for the future
-! M: rix-value rix-eval dup type>> ".eval" append "symbol" <val> pick current-namespace>> env-get [ dup type>> "macro" = [ swap 2array eval-tokens ] [ drop ] if ] when* ;
-
-M: rix-value rix-eval ;
+M: rix-value rix-eval
+    [ evaluates-to-something? ] 1check
+    [ dup type>> ".eval" append "symbol" <val> pick current-namespace>> env-get swap "lock" <val> [ over "continuation" <val> ] dip 3array eval-tokens dup type>> "nop" = [ drop f ] when ] when ;
 
 : global-env ( -- env )
     f
@@ -350,9 +284,10 @@ M: rix-value rix-eval ;
         { SYM: number.<= [ { TYP: number TYP: number } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi <= "bool" <val> ] <builtin> "compares two numbers" desc ] }
         { SYM: number.>= [ { TYP: number TYP: number } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi >= "bool" <val> ] <builtin> "compares two numbers" desc ] }
         { SYM: = [ { TYP: any TYP: any } { SYM: x SYM: y } [ dup [ "x" get-value* ] [ "y" get-value* ] bi = "bool" <val> ] <builtin> "checks for equality" desc ] }
+        { SYM: nop [ f "nop" <val> ] }
         { SYM: rest [ { TYP: list } { SYM: list } [ dup "list" get-value* 1 tail ] <builtin>
                        "returns all of the list but the first element" desc ] }
-        { SYM: rdln [ { } { } [ readln [ "string" <val> ] [ f "bool" <val> ] if* ] <builtin> "reads a line from the input stream" desc ] }
+        { SYM: rdln [ { } { } [ readln [ "string" <val> ] [ f "nil" <val> ] if* ] <builtin> "reads a line from the input stream" desc ] }
         { SYM: rdch [ { } { } [ 1 read first "number" <val> ] <builtin> "reads a single character from the input stream" desc ] }
         { SYM: rdstr [ { TYP: string TYP: list } { SYM: string SYM: code } [ dup [ "code" get-value ] [ "string" get-value ] bi [ eval-tokens-with-env-up ] with-string-reader ] <builtin>
                         "runs 'code' in an enviroment with the given string as an input stream, meaning that within 'code', (for example) every 'rdln' reads a line from the stream" desc ] }
@@ -362,8 +297,8 @@ M: rix-value rix-eval ;
           [ { TYP: number }
              { SYM: char } [ dup "char" get-value escape [ "number" <val> ] [ f "bool" <val> ] if* ] <builtin> "converts from a single character to an associated escaped character. for example, turns 'n' into a newline" desc ] }
         { SYM: first [ { TYP: list } { SYM: list } [ dup "list" get-value* first ] <builtin>
-                         "returns the first element of a list" desc ] }
-        ! { SYM: |=| $[ { "any" "any" } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi = "bool" <val> ] <builtin> "checks for loose equality (when two rix values have the same internal value)" desc ] }
+                       "returns the first element of a list" desc ] }
+        ! { SYM: abs [ { TYP: number } { SYM: n } [ dup "n" get-value abs "number" <val> ] <builtin> "gets the absolute value of a number" desc ] }
         { SYM: and [ { TYP: any TYP: any } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi and "bool" <val> ] <builtin> "preforms 'and' on two bools" desc ] }
         { SYM: or [ { TYP: any TYP: any } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi or "bool" <val> ] <builtin> "preforms 'or' on two bools" desc ] }
         { SYM: nth [ { TYP: list TYP: number } { SYM: list SYM: n } [ dup [ "n" get-value ] [ "list" get-value ] bi nth ] <builtin> "gets the nth element of a list" desc ] }
@@ -372,7 +307,9 @@ M: rix-value rix-eval ;
                      "applies 'func' to each element in 'list', returning a new list made up of all the return values" desc ] }
         { SYM: compress-hash [ { TYP: hash TYP: callable } { SYM: hash SYM: func } [ dup [ "hash" get-value ] [ "func" get-value* ] bi { } [ roll [ -rot 3array eval-tokens-with-env-up ] dip swap suffix ]
                                                                                     curry assoc-reduce "list" <val> ] <builtin>
-                              "applies 'func' to each key-value pair in 'hash', returning a new list made up of all the return values" desc ] }
+                               "applies 'func' to each key-value pair in 'hash', returning a new list made up of all the return values" desc ] }
+        { SYM: lock [ { TYP: any } { SYM: val } [ dup "val" get-value* "lock" <val> ] <builtin> "'locks' a value. it will remain locked, and unable to be evaluated, until 'unlock' is called" desc ] }
+        { SYM: unlock [ { TYP: lock } { SYM: locked } [ dup "locked" get-value ] <builtin> "'unlocks' a locked value, returning it" desc ] }
         { SYM: maphash [ { TYP: hash TYP: callable } { SYM: hash SYM: func } [ dup [ "hash" get-value ] [ "func" get-value* ] bi [ -rot 3array eval-tokens-with-env-up ] curry assoc-map "hash" <val> ] <builtin>
                          "applies 'func' to each key-value pair in 'hash', returning a new hash made up of all the return values. (return values are in the format [key value])" desc ] }
         { SYM: fbody [ { TYP: callable  } { SYM: func } [ dup "func" get-value body>> ] <builtin> "gets the body of a function. primatives return [prim]" desc ] }
@@ -449,7 +386,7 @@ M: rix-value rix-eval ;
 
         { SYM: typreq
           [
-              { TYP: list TYP: callable } { SYM: list SYM: func } [ dup [ "func" get-value* ] [ "list" get-value ] bi overd swap [ swap eval-tokens-results swap ] with-env-up swap nip [ value>> ] map [ >>types ] curry change-value ]
+              { TYP: list TYP: callable } { SYM: list SYM: func } [ dup [ "func" get-value* ] [ "list" get-value ] bi overd swap [ swap eval-tokens-results swap ] with-env-up swap nip [ >>types ] curry change-value ]
               <builtin> "sets a list of required types for this function. 'typ any' means any type can be inputted, and 'typ callable' means that functions, inlines, macros, variadics etc. can all be used" desc
           ]
         }
@@ -459,7 +396,7 @@ M: rix-value rix-eval ;
         { SYM: typ [ { TYP: symbol } { SYM: sym } [ dup "sym" get-value "type" <val> push-token ] <builtin-macro>
                      "turns a symbol into a type. honestly I didn't need to make a seperate 'type' type, but I thought I did, changed a bunch of stuff, and it's too tiresome to change it back" desc ] }
         { SYM: cast [ { TYP: any TYP: type } { SYM: val SYM: type } [
-                          dup [ "val" get-value* dup type>> ] [ "type" get-value ] bi ">" prepend append "symbol" <val> swap dup evaluates-to-something? [ "quote" <val> ] when 2array push-tokens f
+                          dup [ "val" get-value* dup type>> ] [ "type" get-value ] bi ">" prepend append "symbol" <val> swap [ swapd evaluates-to-something? swapd ] keep swap [ "quote" <val> ] when 2array push-tokens f
                       ] <builtin> "sets the type of the value to the given type by calling the function 'type1>type2'" desc ] }
         { SYM: ucast [ { TYP: any TYP: type } { SYM: val SYM: typ } [ dup [ "val" get-value ] [ "typ" get-value ] bi <val> ] <builtin> "preforms an unsafe cast of one type to another. should mainly be used in constructors" desc ] }
         { SYM: set [ { TYP: symbol TYP: any } { SYM: name SYM: value } [ dup [ "name" get-value* ] [ "value" get-value* ] bi pick current-namespace>> parent>> [ swapd env-set drop ] keepd ] <builtin-inl> "defines a variable" desc ] }
@@ -480,8 +417,9 @@ M: rix-value rix-eval ;
                          <builtin-inl> "creates a new generic with the given name and params, exports it, and assigns it to that name within the global scope" desc ] }
         { SYM: cstack [ { } { } [ dup callstack>> [ [ params>> ] [ name>> ] bi prepend "parens" <val> ] map "list" <val> ] <builtin> "returns the callstack" desc ] }
         { SYM: quot [ { TYP: any } { SYM: val } [ dup "val" get-value* "quote" <val> ] <builtin> "quotes a value" desc ] }
+        { SYM: res [ { TYP: symbol } { SYM: val } [ dup "val" get-value* "resolve" <val> ] <builtin> "makes a symbol a resolve expression ($sym syntax)" desc ] }
         { SYM: uquot [ { TYP: any } { SYM: val } [ dup "val" get-value* "unquote" <val> ] <builtin> "makes a value an unquote" desc ] }
-        { SYM: suquot [ { TYP: any } { SYM: val } [ dup "val" get-value* "splice-unquote" <val> ] <builtin> "makes a value a splice-unquote" desc ] }
+        { SYM: splice [ { TYP: any } { SYM: val } [ dup "val" get-value* "splice" <val> ] <builtin> "makes a value a splice" desc ] }
         { SYM: err [ { TYP: string } { SYM: str } [ dup "str" get-value \ eval-error boa "error" <val> push-token f ]  <builtin> "throws an error with the given string as a message" desc ] }
         { SYM: new-err [ { TYP: string } { SYM: str } [ dup "str" get-value \ eval-error boa "error" <val> ]  <builtin> "returns an error with the given string as a message" desc ]  }
         { SYM: try [ { TYP: list TYP: callable } { SYM: list SYM: catch } [ dup [ "catch" get-value* ] [ "list" get-value* ] bi
@@ -493,7 +431,7 @@ M: rix-value rix-eval ;
                          <builtin> "runs 'list', returning a string containing everything that was printed during its running" desc ] }
         { SYM: assert= [ { TYP: any TYP: any } { SYM: one SYM: two } [ dup [ "one" get-value* ] [ "two" get-value* ] bi [ = ] 2check [ drop ]
                                                    [ [ [ pprint-rix-value ] with-string-writer ] bi@ " != " prepend append "Assert failed: " prepend eval-error ] if ]
-                          <builtin> "throws an error if 'one' and 'two' aren't equal" desc ] }
+                         <builtin> "throws an error if 'one' and 'two' aren't equal" desc ] }
         { SYM: os [ { } { } [ os name>> "string" <val> ] <builtin> "gets the current operating system" desc ] }
         { SYM: let [ { TYP: any TYP: list } { SYM: hash SYM: code } [
                          dup [ "code" get-value ] [ "hash" get-value ] bi rot [ swap [ [ <env> ] dip >>bindings ] curry change-current-namespace swap f "scopeup" <val> suffix eval-tokens swap ] with-env-up swap ] <builtin>
@@ -502,21 +440,47 @@ M: rix-value rix-eval ;
                     "returns the result of retriving 'sym' in the parent enviroment of the one within cont" desc ] }
         { SYM: getval [ { TYP: continuation TYP: symbol } { SYM: cont SYM: sym } [ dup [ "sym" get-value* ] [ "cont" get-value ] bi current-namespace>> env-get ] <builtin>
                      "returns the result of retriving 'sym' in the enviroment within cont" desc ] }
-        { SYM: upret [ { TYP: continuation TYP: any } { SYM: cont SYM: val } [ [ "cont" get-value evaluator-parent evaluator-<env> ] [ "val" get-value* ] bi dup type>> "nil" = [ drop ] [ push-token ] if f ] <func>
-                       "resumes the continuation 'cont' with an enviroment set to the parent of the of the one within cont, pushing the value 'val' onto the token array if it is non-nil" desc ] }
-        { SYM: downret [ { TYP: continuation TYP: any } { SYM: cont SYM: val } [ [ "cont" get-value evaluator-<env> ] [ "val" get-value* ] bi dup type>> "nil" = [ drop ] [ push-token ] if f ] <func>
-                       "resumes the continuation 'cont' with an enviroment set to an empty child of the of the one within cont, pushing the value 'val' onto the token array if it is non-nil" desc ] }
-        { SYM: ret [ { TYP: continuation TYP: any } { SYM: cont SYM: val } [ [ "cont" get-value ] [ "val" get-value* ] bi dup type>> "nil" = [ drop ] [ push-token ] if f ] <func>
-                     "resumes the continuation 'cont', pushing the value 'val' onto the token array if it is non-nil" desc ] }
+        { SYM: upret [ { TYP: continuation TYP: any } { SYM: cont SYM: val } [
+                           [ "cont" get-value evaluator-parent evaluator-<env> V{ } clone >>callstack ] [ "val" get-value* ] bi dup type>> "nil" = [ drop ] [ push-token ] if f ] <func>
+                       "resumes the continuation 'cont' with an enviroment set to the parent of the of the one within cont, returning to it with 'val' as a result" desc ] }
+        { SYM: downret [ { TYP: continuation TYP: any } { SYM: cont SYM: val } [ [ "cont" get-value evaluator-<env> V{ } clone >>callstack ] [ "val" get-value* ] bi dup type>> "nil" = [ drop ] [ push-token ] if f ] <func>
+                       "resumes the continuation 'cont' with an enviroment set to an empty child of the of the one within cont, returning to it with 'val' as a result" desc ] }
+        { SYM: ret [ { TYP: continuation TYP: any } { SYM: cont SYM: val } [ [ "cont" get-value V{ } clone >>callstack ] [ "val" get-value* ] bi dup type>> "nil" = [ drop ] [ push-results ] if f ] <func>
+                     "resumes the continuation 'cont', returning to it with 'val' as a result" desc ] }
         { SYM: callcc [ { TYP: callable } { SYM: func } [ dup [ "func" get-value* ] [ evaluator-save evaluator-parent evaluator-save "continuation" <val> ] bi 2array push-tokens f ] <builtin>
                         "creates a continuation at the point after the end of this function call, and runs the inputed function, passing the continuation as a value" desc ] }
-        { SYM: runc [ { TYP: continuation TYP: list } { SYM: cont SYM: code } [ dup [ "cont" get-value ] [ "code" get-value ] bi eval-tokens ] <builtin>
-                     "runs 'code' within the continuation 'cont', returning to the current continuation afterwards" desc ] }
+        { SYM: runc [ { TYP: continuation TYP: list } { SYM: cont SYM: code } [ dup [ "cont" get-value evaluator-save ] [ "code" get-value ] bi eval-tokens drop "continuation" <val> ] <builtin>
+                      "runs 'code' within the continuation 'cont' (returning 'cont'), returning to the current continuation afterwards" desc ] }
+        { SYM: norm [ { TYP: continuation TYP: any } { SYM: cont SYM: val } [ dup [ "cont" get-value ] [ "code" get-value* ] bi eval-one nip ] <builtin>
+                      "evaluates 'val' within the continuation 'cont', returning the result of the evaluation. this has the side effect of modifying 'cont'" desc ] }
+        { SYM: runbef [ { TYP: continuation TYP: list } { SYM: cont SYM: code } [ dup [ "cont" get-value evaluator-save ] [ "code" get-value ] bi push-tokens "continuation" <val> ] <builtin>
+                        "sets the continuation to run some code before the code it would otherwise run" desc ] }
+        { SYM: tpeekc [ { TYP: continuation } { SYM: cont } [ dup "cont" get-value evaluator-save pop-token nip ] <builtin> "looks at the next token in the continuation 'cont'" desc ] }
+        { SYM: tpushc [ { TYP: continuation TYP: any } { SYM: cont SYM: val }
+                        [ dup [ "cont" get-value evaluator-save ] [ "val" get-value* ] bi push-token "continuation" <val> ] <builtin> "pushes a value to the continuation 'cont'" desc ] }
+        { SYM: tpopc [ { TYP: continuation } { SYM: cont } [ dup "cont" get-value pop-token nip ] <builtin>
+                       "pops the next token in the continuation 'cont'. this is pretty much the only rix function with a side effect, as it modifies 'cont' without returning it"
+                       desc ] }
+        { SYM: retc [ { TYP: continuation } { SYM: cont } [ [ "cont" get-value ] keep "continuation" <val> push-results f ]
+                      <func> "resumes the continuation 'cont', returning to it with the current continuation as a result" desc ] }
+        { SYM: getenv [ { } { } [ dup current-namespace>> compress-env bindings>> "hash" <val> ] <builtin> "gets the current enviroment as a hashtable" desc ] }
+        { SYM: tcountc [ { TYP: continuation } { SYM: cont } [ dup "cont" get-value [ tokens>> length ] [ extra-tokens>> concat length ] bi + "number" <val> ] <builtin> "returns the amount of tokens in 'cont'" desc ] }
+        { SYM: newcont [ { TYP: list } { SYM: tokens } [ dup [ "tokens" get-value ] [ current-namespace>> <env> ] bi <evaluator> "continuation" <val> ] <builtin>
+                         "returns a new continuation with a child enviroment of the current enviroment" desc ] }
+        { SYM: wrtstr [ { TYP: string } { SYM: string } [ dup "string" get-value dup write "string" <val> ] <builtin> "prints a string" desc ] }
+        { SYM: floor [ { TYP: num } { SYM: n } [ dup "n" get-value floor "number" <val> ] <builtin> "floors a number" desc ] }
+        { SYM: gettyp [ { TYP: any } { SYM: val } [ dup "val" get-value* type>> "type" <val> ] <builtin> "gets the type of a value" desc ] }
+        { SYM: keys [ { TYP: hash } { SYM: hash } [ dup "hash" get-value keys "list" <val> ] <builtin> "gets the keys in a hash as a list" desc ] }
+        { SYM: values [ { TYP: hash } { SYM: hash } [ dup "hash" get-value values "list" <val> ] <builtin> "gets the keys in a hash as a list" desc ] }
+        { SYM: msg [ { TYP: error } { SYM: err } [ dup "err" get-value msg>> "string" <val> ] <builtin> "gets the message of an error, if the error has one" desc ] }
+        { SYM: underlying [ { TYP: any } { SYM: val } [ dup "val" get-value underlying-rix ] <builtin> "gets the underlying value of a builtin rix type as a hashtable" desc ] }
+        {
+            SYM: envstack [ { } { } [ dup current-namespace>> env>seq "list" <val> ] <builtin>
+                            "gets the current enviroment as a list, where the last element is a hash containing the current enviroment, and the previous elements are the parents of that enviroment as hashtables" desc ]
+        }
+        { SYM: rixparse [ { TYP: string } { SYM: code } [ dup "code" get-value lex-str "list" <val> ] <builtin> "parses a rix string, returning a list of tokens" desc ] }
     } clone [ [ clone ] [ dup quotation? [ call( -- val ) ] when ] bi* ] assoc-map rix-env boa clone
     ;
-
-
-
 
 M: rix-value pprint-rix-value dup value>> hashtable? [ dup type>> "hash" = not [ [ type>> write ] [ value>> "hash" <val> pprint-rix-value ] bi ] [ value>> pprint ] if ] [ value>> pprint ] if ;
 
@@ -526,7 +490,6 @@ M: rix-value pprint-rix-value dup value>> hashtable? [ dup type>> "hash" = not [
 
 : include-file ( module-name -- module ) find-file-path utf8 file-contents lex-str global-env <evaluator> eval-full to-export>> "module" <val> ;
 
-: compress-env ( env -- env ) dup parent>> [ compress-env swap [ bindings>> ] bi@ assoc-union f swap rix-env boa ] when* ;
 : env-set-parent ( env parent -- env ) swap [ 2dup = [ drop <env> ] [ swap [ >>parent ] when* ] if ] curry change-parent ;
 : env-parent-union ( env -- env ) dup parent>> [ [ [ bindings>> ] bi@ assoc-union ] [ parent>> ] bi swap rix-env boa ] when* ;
 : load-env ( env1 env2 -- env ) compress-env env-set-parent env-parent-union ;
@@ -552,10 +515,10 @@ PRIVATE>
             ] recover
         ] loop drop ;
 
-: run-rix ( -- ) command-line get-global dup length 0 > [ [ 4 cut* ".rix" = [ ".rix" append utf8 file-contents [ eval-str-to-str ] [ . ] recover drop ] [ "file name must end in .rix" eval-error ] if ] each ] [ drop repl ] if ;
-
-! continuation ideas
-
+: run-rix-file ( file-path -- ) 4 cut* ".rix" = [ ".rix" append dup parent-directory [ file-name utf8 file-contents eval-str-to-str ] with-directory drop ]
+                                               [ "file name must end in .rix" eval-error ] if ;
+: run-rix ( -- )
+    command-line get-global dup length 0 > [ [ [ run-rix-file ] [ nip . ] recover ] each ] [ drop repl ] if ;
 
 
 ! hello@world
@@ -583,6 +546,12 @@ M: rix-stream pprint-rix-value drop "*stream*" write ;
 ! 1798
 RIX-TYPE: rix-number ;
 
+RIX-TYPE: rix-lock ;
+M: rix-lock pprint-rix-value "lock " write value>> pprint-rix-value ;
+
+RIX-TYPE: rix-nop drop f ;
+M: rix-nop pprint-rix-value drop "nop" write ;
+
 RIX-TYPE: rix-semicolon drop f ;
 M: rix-semicolon pprint-rix-value drop ";" write ;
 M: rix-semicolon evaluates-to-something? drop t ;
@@ -603,7 +572,10 @@ M: rix-scopedown evaluates-to-something? drop t ;
 RIX-TYPE: rix-string ;
 
 RIX-TYPE: rix-hash ;
-M: rix-hash pprint-rix-value value>> V{ } [ [ suffix ] bi@ ] assoc-reduce "{" write dup empty? not [ unclip pprint-rix-value ] when [ " " write pprint-rix-value ] each "}" write ;
+M: rix-hash pprint-rix-value value>>
+    V{ } [ [ suffix ] bi@ ] assoc-reduce "{" write dup empty? not
+                                           [ unclip pprint-rix-value ] when
+                                           [ " " write pprint-rix-value ] each "}" write ;
 
 RIX-TYPE: rix-module ;
 M: rix-module pprint-rix-value value>> name>> "mod " write write ;
@@ -733,8 +705,8 @@ RIX-TYPE: rix-type ; ! sorta funny
 M: rix-type pprint-rix-value "typ " write value>> write ;
 
 ! @something
-RIX-TYPE: rix-splice-unquote ;
-M: rix-splice-unquote pprint-rix-value "@" write value>> pprint-rix-value ;
+RIX-TYPE: rix-splice ;
+M: rix-splice pprint-rix-value "@" write value>> pprint-rix-value ;
 
 ! genr 'foo [x y]
 RIX-TYPE: rix-generic

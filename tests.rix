@@ -142,12 +142,12 @@ assert= (istream (fin "tests.rix" "utf8") [rdln]) "# rix tests"
 prn "passed test 29"
 
 prn "test 30: complex type system"
-incl std.seq
+incl seq
 assert= (typ? typ seq [1 2 3]) tru
 prn "passed test 30"
 
 prn "test 31: struct macro"
-incl std.macs
+incl macs
 struct dude [name age]
 assert= (prop age new-dude "jeff" 19) 19
 prn "passed test 31"
@@ -178,11 +178,24 @@ prn "test 37: continuations pt 6"
 assert= (testfn2 3 5) 5
 prn "passed test 37"
 
-# for the future
-# prn "test 38: custom evaluation"
-# person.eval: mac [person] '[prop age ,(quot $person)];
-# assert= (new-person "jeff" 19) 19
-# prn "passed test 39"
+prn "test 38: more complex continuations" # this probably shouldn't be a test because of how long it is, but I don't really care.
+# It's also probably more of an example for how *not* to use continuations, but it's still good to make sure that it works
+backwards-runc: fn [list cont] [runc cont list]; # needed because '[,(tpopc cont)] below needs to be evaluated before 'cont'
+single-step-cont: fn [cont] [backwards-runc '[,(tpopc cont)] cont];
+single-step-each: fn [conts] [map conts fn [cont] [if (> tcountc cont 0) [single-step-cont cont] [cont]]];
+run-each: fn [conts]
+	  [
+		if (allpass conts fn [cont] [> tcountc cont 0])
+		[run-each (single-step-each conts)] [conts]
+	  ];
+assert= (prnted [run-each '[,(newcont [wrt "Hello, " wrt "Hello, "]) ,(newcont [wrt "World! " wrt "World!"])]]) "Hello, World! Hello, World!"
+prn "passed test 38"
+
+prn "test 39: custom evaluation"
+struct to-add [x y]
+to-add.eval: fn [cont val] [+ (at 'x unlock val) (at 'y unlock val)];
+assert= (prnted [foobar: new-to-add 1 1; wrt $foobar wrt ":" wrt foobar]) "to-add{x 1 y 1}:2"
+prn "passed test 39"
 
 prn "all tests passed!"
 

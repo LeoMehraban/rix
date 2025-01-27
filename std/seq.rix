@@ -12,6 +12,7 @@ genexp 'all [seq] # > list
 genexp 'length [seq] # > number
 genexp 'sconcat [seq elt] # > seq
 genexp 'econcat [seq elt] # > seq
+genexp 'empty [seq] # > seq
 
 exp revcons: desc "pushes the element 'elt' onto the end of 'lst', returning 'lst'" typreq [typ any typ list] fn [elt lst] '[@lst ,elt];
 exp cons: desc "pushes the element 'elt' onto the beginning of 'lst', returning 'lst'" typreq [typ any typ list] fn [elt lst] '[,elt @lst];
@@ -21,14 +22,14 @@ exp list.rst: fn [list] [rest list];
 exp list.length: fn [list] [len list];
 exp list.sconcat: fn [list elt] [cons elt list];
 exp list.econcat: fn [list elt] [revcons elt list];
+exp list.empty: fn [list] [[]];
 
-exp string.fst: fn [str] [first (str>lst str)];
-exp string.rst: fn [str] [lst>str rest (str>lst str)];
-exp string.length: fn [str] [len (str>lst str)];
-exp string.sconcat: fn [elt str] [lst>str cons elt (str>lst str)];
-exp string.econcat: fn [elt str] [lst>str revcons elt (str>lst str)];
-
-
+exp string.fst: fn [str] [first (string>list str)];
+exp string.rst: fn [str] [list>string rest (string>list str)];
+exp string.length: fn [str] [len (string>list str)];
+exp string.sconcat: fn [str elt] [list>string cons elt (string>list str)];
+exp string.econcat: fn [str elt] [list>string revcons elt (string>list str)];
+exp string.empty: fn [list] [""];
 
 exp second: desc "gets the second element of a list" fn [list] [fst rst list];
 
@@ -52,7 +53,16 @@ exp iter*: desc
 		iter** '[,prev tru] list $fun
        ];
 
-
+exp allpass: desc "runs 'fun' on each element of 'list', stopping when it returns false. if everything passes and the list is over, returns true, otherwise false" fn [list fun]
+    [
+	if (> length list 0)
+	[
+		if (fun fst list)
+		[allpass (rst list) $fun]
+		[fal]
+	]
+	[tru]
+    ];
 
 exp reduce*: desc "recursivally applies 'fun' to 'prev' and the first element of 'list', calling reduce* again with the result of that evaluation as 'prev', and the remainder of the list as 'list'" fn [prev list fun]
 	 [
@@ -97,6 +107,8 @@ exp iter: desc "calls iter* with 'prev' as the first element of 'list' and 'list
 
 exp before: desc "gets all of the list before index n" fn [n list]
 	[
-		iter* [] list
+		iter* (empty list) list
 		fn [prev cur] [if (< (- length prev 1) (- n 1)) ['[,(econcat prev cur) tru]] ['[,prev fal]]]
 	];
+
+exp but-last: desc "gets everything before the last element of a seq" fn [list] [before (- length list 1) list];
