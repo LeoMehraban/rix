@@ -197,5 +197,9 @@ to-add.eval: fn [cont val] [+ (at 'x unlock val) (at 'y unlock val)];
 assert= (prnted [foobar: new-to-add 1 1; wrt $foobar wrt ":" wrt foobar]) "to-add{x 1 y 1}:2"
 prn "passed test 39"
 
+prn "test 40: functions returning multiple values"
+foo1234: fn [x] [prn x "potato"];
+bar1234: fn [num string] [prn string num];
+assert= (try [bar1234 foo1234 6] fn [err] [$err]) (new-err "Expected expression but got nothing")
 prn "all tests passed!"
 
