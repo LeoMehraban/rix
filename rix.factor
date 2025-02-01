@@ -519,7 +519,7 @@ PRIVATE>
         [
             "rix> " write flush readln
             [
-                [ lex-str >>tokens eval-full V{ } clone >>callstack dup results>> dup empty? not [ last pprint-rix-value "\n" write t ] [ drop t ] if ] when*% ] [
+                [ lex-str >>tokens eval-full V{ } clone >>callstack dup last-result>> [ pprint-rix-value "\n" write t ] [ t ] if* ] when*% ] [
                 [ "error" <val> pprint-rix-value "\n" write ] with-string-writer
                 COLOR: red
                 foreground associate format
