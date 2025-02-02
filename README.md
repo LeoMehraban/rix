@@ -134,14 +134,14 @@ everything exported into a module is stored in the global env, but if this cause
 | - | fn [x y] | subtracts two numbers |
 | compress-hash | fn [hash func] | applies 'func' to each key-value pair in 'hash', returning a new list made up of all the return values |
 | >= | genr '>= [x y] | No description |
-| varimac | mac [params body] | creates a function with params and a body that returns either a list or a single value that is pushed onto the token array. the last named param is a list of every token between the penultimate param and a ; token |
+| varimac | mac [params body] | creates a function with locked params (which must be accessed via 'unlock') and a body that returns either a list or a single value that is pushed onto the token array. the last named param is a list of every token between the penultimate param and a ; token |
 | gettyp | fn [val] | gets the type of a value |
 | typ | mac [sym] | turns a symbol into a type. honestly I didn't need to make a seperate 'type' type, but I thought I did, changed a bunch of stuff, and it's too tiresome to change it back |
 | consfn | fn [params body] | constructs a function with params and a body. consfn is a function itself, meaning it evaluates its input parameters, so you can create a function with a runtime-computed definition |
 | timps? | fn [gen val] | tests if this type implements a generic |
 | consmac | fn [params body] | constructs a macro; see the description of 'consfn' for the difference between this and 'mac' |
 | list>string | fn [list] | converts a list to a string |
-| mac | mac [params body] | creates a function with params and a body that returns either a list or a single value that is pushed onto the token array |
+| mac | mac [params body] | creates a function with locked params (which must be accessed via 'unlock') and a body that returns either a list or a single value that is pushed onto the token array |
 | tpop | fn [] | pops from the tokenstack. should mainly be used with macros, as using with functions or inline functions may provide unexpected results |
 | newcont | fn [tokens] | returns a new continuation with a child enviroment of the current enviroment |
 | at | fn [key hash] | gets the value at key stored within 'hash' |

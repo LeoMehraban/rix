@@ -67,7 +67,7 @@ prn "passed test 13"
 
 prn "test 14: macros"
 scop: fn [code scope] [let scope code];
-prop: mac [p] [scop '[,$p] nxt];
+prop: mac [p] [scop '[,(unlock p)] nxt];
 assert= (prop age new-person "jeff" 19) 19
 prn "passed test 14"
 
