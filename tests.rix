@@ -200,6 +200,21 @@ prn "passed test 39"
 prn "test 40: functions returning multiple values"
 foo1234: fn [x] [prn x "potato"];
 bar1234: fn [num string] [prn string num];
-assert= (try [bar1234 foo1234 6] fn [err] [$err]) (new-err "Expected expression but got nothing")
-prn "all tests passed!"
+assert= (try [bar1234 foo1234 6] fn [_ err] [$err]) (new-err "Expected expression but got nothing")
 
+prn "test 41: modf pt 1"
+foo12345: "test1";
+let {} [set 'foo12345 "test2"]
+assert= foo12345 "test1"
+prn "passed test 41"
+
+prn "test 42: modf pt 2"
+let {} [modf 'foo12345 "test2"]
+assert= foo12345 "test2"
+prn "passed test 42"
+
+prn "test 43: no type convert in unquote"
+assert= '[(,(+ 1 1))] [(2)]
+prn "passed test 43"
+
+prn "all tests passed!"

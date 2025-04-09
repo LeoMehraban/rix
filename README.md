@@ -29,7 +29,7 @@ Here's some examples:
 
 if you just wrote `pdesc prn`, rix would complain that you aren't providing enough parameters to the prn function
 
-all functions included by default are listed below. if you don't understand some things, it's helpful to look through test.rix and tests.rix (particularly tests.rix)
+all functions included by default are listed below. if you don't understand some things, it's helpful to look through tests.rix and std/\*.rix
 
 ## some more stuff
 
@@ -54,6 +54,7 @@ everything exported into a module is stored in the global env, but if this cause
 | set | inl [name value] | defines a variable |
 | nop | nop | No description |
 | < | genr '< [x y] | No description |
+| tdelc | fn [cont] | pops the next token in the continuation 'cont', returning the continuation |
 | map | fn [list func] | applies 'func' to each element in 'list', returning a new list made up of all the return values |
 | consinl | fn [params body] | constructs an inline function; see the description of 'consfn' for the difference between this and 'inl' |
 | underlying | fn [val] | gets the underlying value of a builtin rix type as a hashtable |
@@ -108,6 +109,7 @@ everything exported into a module is stored in the global env, but if this cause
 | prnted | fn [list] | runs 'list', returning a string containing everything that was printed during its running |
 | = | fn [x y] | checks for equality |
 | inl | mac [params body] | creates a function with params and a body whose results may depend on the surrounding enviroment |
+| rdn | fn [n] | reads a single character from the input stream |
 | fparams | fn [func] | gets the params of a function |
 | evl | fn [val] | evaluates 'val' |
 | consvari | fn [params body] | constructs a variadic function; see the description of 'consfn' for the difference between this and 'vari' |
@@ -133,6 +135,7 @@ everything exported into a module is stored in the global env, but if this cause
 | norm | fn [cont val] | evaluates 'val' within the continuation 'cont', returning the result of the evaluation. this has the side effect of modifying 'cont' |
 | - | fn [x y] | subtracts two numbers |
 | compress-hash | fn [hash func] | applies 'func' to each key-value pair in 'hash', returning a new list made up of all the return values |
+| modf | fn [sym val] | modifies the value at a given name if it exists, rather than setting a new value in the current namespace |
 | >= | genr '>= [x y] | No description |
 | varimac | mac [params body] | creates a function with locked params (which must be accessed via 'unlock') and a body that returns either a list or a single value that is pushed onto the token array. the last named param is a list of every token between the penultimate param and a ; token |
 | gettyp | fn [val] | gets the type of a value |

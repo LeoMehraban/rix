@@ -1,8 +1,9 @@
 IN: rix.common
-USING: kernel sequences io.files lexer parser environment splitting assocs vectors math arrays ;
+USING: kernel sequences io.files lexer parser environment splitting assocs vectors math arrays summary accessors prettyprint ;
 TUPLE: rix-value value type description ;
 
 ERROR: eval-error msg ;
+M: eval-error summary msg>> unparse ;
 
 : <val> ( value type -- rix-value ) "No description" rix-value boa ;
 

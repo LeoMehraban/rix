@@ -1,8 +1,15 @@
 IN: rix.lexer
-USING: kernel generic parser make assocs command-line ranges literals tools.continuations namespaces serialize arrays environment lexer system alien.libraries prettyprint splitting classes.tuple colors hashtables continuations sequences.deep prettyprint.custom prettyprint.sections  words classes.predicate quotations accessors vectors classes.parser math math.functions sequences combinators classes combinators.smart unicode strings io io.styles io.files io.encodings.utf8 io.streams.string math.parser strings.parser io.encodings.ascii io.encodings.utf16 io.pathnames io.directories rix.common ;
+USING: kernel generic parser make assocs command-line ranges literals tools.continuations namespaces serialize arrays environment lexer system alien.libraries prettyprint splitting classes.tuple colors hashtables continuations sequences.deep prettyprint.custom prettyprint.sections  words classes.predicate quotations accessors vectors classes.parser math math.functions sequences combinators classes combinators.smart unicode strings io summary io.styles io.files io.encodings.utf8 io.streams.string math.parser strings.parser io.encodings.ascii io.encodings.utf16 io.pathnames io.directories rix.common ;
 
-ERROR: lexer-error msg ;
+ERROR: lexer-error lexer msg ;
 TUPLE: rix-lexer str pos ;
+! ...before after...
+M: lexer-error summary 
+    [ 
+        lexer>> [ str>> ] [ pos>> ] bi cut [ dup length 5 > [ 5 tail* "..." prepend ] when ] 
+        [ dup length 6 > [ 6 head "..." append ] when ] bi* append 
+    ] [ msg>> ": " append ] bi prepend ;
+! M: lexer-error pprint* summary text ;
 
 <PRIVATE
 DEFER: lex-val
@@ -17,7 +24,8 @@ DEFER: lex-until-semi
 : reset-if ( lexer quot: ( ..a lexer -- ..b lexer parsed? ) -- ..b lexer parsed? ) over clone [ call swap ] dip [ ? ] keepdd ; inline
 : skip-whitespace ( lexer -- lexer ) valid-length? [ [ dup current blank? [ lexer-next ] when% ] loop ] when ;
 : skip-non-newline-whitespace ( lexer -- lexer ) valid-length? [ [ dup current [ blank? ] [ CHAR: \n = not ] bi and [ lexer-next ] when% ] loop ] when ;
-: valid-char? ( char -- ? ) [ { [ CHAR: ( eq? ] [ CHAR: ) eq? ] [ CHAR: { eq? ] [ CHAR: } eq? ]  [ CHAR: [ eq? ] [ CHAR: ] eq? ] [ CHAR: ; eq? ] [ CHAR: @ eq? ] [ CHAR: $ eq? ] } cleave ] output>array [  ] any? not ;
+: valid-char? ( char -- ? ) 
+    [ { [ CHAR: ( eq? ] [ CHAR: ) eq? ] [ CHAR: { eq? ] [ CHAR: } eq? ]  [ CHAR: [ eq? ] [ CHAR: ] eq? ] [ CHAR: ; eq? ] [ CHAR: @ eq? ] [ CHAR: $ eq? ] [ CHAR: " eq? ] } cleave ] output>array [  ] any? not ;
 : lex-comment ( lexer -- lexer ) CHAR: # match-and-advance [ [ valid-length? [ dup current CHAR: \n = not [ lexer-next ] when% ] when% ] loop ] when ;
 : lex-comment? ( lexer -- lexer ? ) CHAR: # match-and-advance [ [ valid-length? [ dup current CHAR: \n = not [ lexer-next ] when% ] when% ] loop t ] when% ;
 : skip-useless ( lexer -- lexer ) [ valid-length? [ skip-whitespace valid-length? [ lex-comment? ] when% ] when% ] loop ;
@@ -63,9 +71,9 @@ DEFER: lex-until-semi
     [ skip-useless ] dip
     [ "Invalid expression" lexer-error ] unless*
     ;
-
+! pos lexer
 : lex-until-semi ( lexer -- lexer expr ) 
-    V{ } clone swap [
+    [ pos>> ] keep V{ } clone swap [
         skip-useless
         lex-quote
         [ lex-unquote ] unless*
@@ -80,11 +88,11 @@ DEFER: lex-until-semi
         [ lex-symbol ] unless*
         [ lex-hash ] unless*
         [ skip-useless ] dip
-        [ valid-length? [ dup current CHAR: ; = not ] [ t ] if [ "Invalid expression" lexer-error ] when f ] unless*
+        [ valid-length? [ dup current CHAR: ; = not ] [ t ] if [ rot >>pos "expected semicolon but got EOF" lexer-error ] when f ] unless*
         [ swapd suffix! swap ] when*
         CHAR: ; match-and-advance not
     ] loop
-    swap
+    swap nipd
  ;
 
 : can-continue? ( lexer -- lexer ? ) skip-whitespace lex-comment valid-length? ;

@@ -1,18 +1,6 @@
 # defines several helpful macros for general use
 incl seq
 
-# following are broken somehow. I don't really care enough to fix
-# exp refl: desc "TODO: write description of refl"
-#    mac [params contname body]
-#    [
-#	quot consmac params '[callcc (fn [cont] [upret cont nil]) [callcc (fn ,contname ,body)]]
-#    ];
-
-# exp varrefl: desc "TODO: write description of varrefl"
-#    mac [params contname body]
-#    [
-#	quot consvarimac params '[callcc (fn [cont] [upret cont nil]) [callcc (fn ,contname ,body)]]
-#    ];
 params-to-unlocked-hash: fn [params] [quot reduce* { } params fn [hash param] [setat $param (uquot '(unlock ,$param)) hash]];
 exp umac: desc "a macro with all of its parameters automatically unlocked" mac [params body] '[mac ,(unlock params) [let ,(params-to-unlocked-hash unlock params) ,body]];
 exp ulock: desc "runs 'code' in an enviroment where 'locked-syms' are unlocked" fn [locked-syms code] [let (params-to-unlocked-hash locked-syms) code];
@@ -20,32 +8,29 @@ exp ulock: desc "runs 'code' in an enviroment where 'locked-syms' are unlocked" 
 exp dfn: desc "equal to name: fn [params] [body];" umac [name params body] '[set ,(quot $name) fn ,params ,body];
 exp dinl: desc "equal to name: inl [params] [body];" umac [name params body] '[set ,(quot $name) inl ,params ,body];
 exp dmac: desc "equal to name: mac [params] [body];" umac [name params body] '[set ,(quot $name) mac ,params ,body];
-# exp drefl: desc "equal to name: refl [params] [cont] [body];" mac [name params contname body] '[set ,(quot $name) refl ,params ,contname ,body];
 exp dvari: desc "equal to name: vari [params] [body];" umac [name params body] '[set ,(quot $name) vari ,params ,body];
 exp dvarinl: desc "equal to name: varinl [params] [body];" umac [name params body] '[set ,(quot $name) varinl ,params ,body];
 exp dvarimac: desc "equal to name: varimac [params] [body];" umac [name params body] '[set ,(quot $name) varimac ,params ,body];
-# exp dvarrefl: desc "equal to name: varrefl [params] [cont] [body];" mac [name params contname body] '[set ,(quot $name) varrefl ,params ,contname ,body];
 
 exp tfn: desc "equal to typreq [types] fn [params] [body];" umac [types params body] '[typreq ,types fn ,params ,body];
 exp tinl: desc "equal to typreq [types] inl [params] [body];" umac [types params body] '[typreq ,types inl ,params ,body];
 exp tmac: desc "equal to typreq [types] mac [params] [body];" umac [types params body] '[typreq ,types mac ,params ,body];
-# exp trefl: desc "equal to typreq [types] refl [params] [contname] [body];" mac [types params contname body] '[typreq ,types refl ,params ,contname ,body];
 exp tvari: desc "equal to typreq [types] vari [params] [body];" umac [types params body] '[typreq ,types vari ,params ,body];
 exp tvarinl: desc "equal to typreq [types] varinl [params] [body];" umac [types params body] '[typreq ,types varinl ,params ,body];
 exp tvarimac: desc "equal to typreq [types] varimac [params] [body];" umac [types params body] '[typreq ,types varimac ,params ,body];
-# exp tvarrefl: desc "equal to typreq [types] varrefl [params] [contname] [body];" mac [types params contname body] '[typreq ,types varrefl ,params ,contname ,body];
+
 symbol>list: fn [sym] [cast (ucast $sym typ string) typ list];
 list>symbol: fn [list] [ucast (cast list typ string) typ symbol];
 add-new-prefix: fn [symbol] [cast '[@(cast "new-" typ list) @(cast $symbol typ list)] typ symbol];
-params-to-hash: fn [params] [reduce* { } params fn [hash param] [setat $param (uquot $param) hash]];
+params-to-hash: fn [params] [reduce* { } params fn [hash param] [setat $param (uquot res $param) hash]];
 
-exp struct: desc "defines a struct type with fields 'params' and name 'name'. does not define getters or setters" mac [name params]
+exp struct: desc "defines a struct type with fields 'params' and name 'name'. does not define getters or setters" typreq [typ symbol typ list] mac [name params]
     	    '[
-		set ,(quot add-new-prefix unlock name) fn ,(unlock params) [ucast ,(quot params-to-hash unlock params) typ ,(unlock name)]
+		        set ,(quot add-new-prefix unlock name) fn ,(unlock params) ,'[ucast ,(quot params-to-hash unlock params) typ ,(unlock name)]
     	    ];
 # TODO: write a better description
 exp pass: desc "passes parameters into a function. the parameters are assumed to exist, so you can pass local variables directly into a function" typreq [typ func] fn [func]
     [
-	tapp '[,$func @(fparams $func)]
+	    tapp '[,$func @(fparams $func)]
     ];
 

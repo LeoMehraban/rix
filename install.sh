@@ -11,4 +11,6 @@ copylib () {
 
 copylib seq.rix
 copylib macs.rix
-copylib math.rix
+# copylib math.rix
+copylib memo.rix
+# copylib debug.rix
