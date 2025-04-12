@@ -148,7 +148,7 @@ prn "passed test 30"
 
 prn "test 31: struct macro"
 incl macs
-struct dude [name age]
+struct dude [name age] # the struct macro is only found within the macs library. It creates the equivlent of new-person in test 13 automatically. read that file to understand how this works 
 assert= (prop age new-dude "jeff" 19) 19
 prn "passed test 31"
 
@@ -216,5 +216,27 @@ prn "passed test 42"
 prn "test 43: no type convert in unquote"
 assert= '[(,(+ 1 1))] [(2)]
 prn "passed test 43"
+
+prn "test 44: cloex"
+bar123: 5;
+baz123: 6;
+foo123: cloex [bar123] fn [] [= bar123 baz123];
+bar123: 6;
+baz123: 4;
+assert= foo123 tru
+prn "passed test 44"
+
+prn "test 45: clo pt 1"
+an-inline: clo {foobarbaz "meh"} inl [] [foobarbaz];
+foobarbaz: "good";
+assert= (not = an-inline foobarbaz) tru
+prn "passed test 45"
+
+prn "test 46: clo pt 2"
+foobarbaz2: "bad";
+an-inline2: clo {foobarbaz2 "meh"} fn [] [foobarbaz2];
+foobarbaz2: "good";
+assert= (and (not = an-inline2 "good") (not = an-inline2 "bad")) tru
+prn "passed test 46"
 
 prn "all tests passed!"

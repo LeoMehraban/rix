@@ -87,6 +87,7 @@ everything exported into a module is stored in the global env, but if this cause
 | typreq | fn [list func] | sets a list of required types for this function. 'typ any' means any type can be inputted, and 'typ callable' means that functions, inlines, macros, variadics etc. can all be used |
 | tpushc | fn [cont val] | pushes a value to the continuation 'cont' |
 | unlock | fn [locked] | 'unlocks' a locked value, returning it |
+| clo | fn [hash func] | includes the hash 'hash' within the env of the closure 'func', or if 'func' is an inline function, then turns it into a closure with the env 'hash' |
 | gdesc | fn [value] | gets the description of a value and returns it |
 | cstack | fn [] | returns the callstack |
 | getenv | fn [] | gets the current enviroment as a hashtable |
@@ -176,6 +177,7 @@ everything exported into a module is stored in the global env, but if this cause
 | tpeekc | fn [cont] | looks at the next token in the continuation 'cont' |
 | tcountc | fn [cont] | returns the amount of tokens in 'cont' |
 | fn | mac [params body] | creates a function with params and a body |
+| cloex | fn [symbols func] | modifies this function or macro to exclude these symbols from its stored environment |
 | number.>= | fn [x y] | compares two numbers |
 | letfn | mac [params body] | creates a function with params and a body and calls that function immediatly |
 | ret | fn [cont val] | resumes the continuation 'cont', returning to it with 'val' as a result |
