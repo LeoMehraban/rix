@@ -24,9 +24,9 @@ exp list.sconcat: fn [list elt] [cons elt list];
 exp list.econcat: fn [list elt] [revcons elt list];
 exp list.empty: fn [list] [[]];
 
-exp string.fst: fn [str] [first (string>list str)];
-exp string.rst: fn [str] [list>string rest (string>list str)];
-exp string.length: fn [str] [len (string>list str)];
+exp string.fst: fn [str] [str-first];
+exp string.rst: fn [str] [str-rest];
+exp string.length: fn [str] [str-len];
 exp string.sconcat: fn [str elt] [list>string cons elt (string>list str)];
 exp string.econcat: fn [str elt] [list>string revcons elt (string>list str)];
 exp string.empty: fn [list] [""];

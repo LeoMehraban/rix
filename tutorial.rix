@@ -1,0 +1,152 @@
+
+
+# a hello world program:
+
+prn "Hello, World!"
+
+# you can print numbers as well
+
+prn 51
+
+# and also any other datatype
+
+prn tru
+
+# prn automatically adds a newline, but there are alternatives that don't
+# this prints "this language: hopefully not broken"
+wrt "this language: " prn "hopefully not broken"
+
+# in the previous example, you see two statements on the same line. statements only end when the function gets all its arguments
+
+# function calls always come before their arguments, and basic math operations are functions
+
+prn + 1 4
+
+# you can group the + 1 4 with parens for easier readablility. this does make a real difference in some cases, but we'll discuss that later
+
+prn (+ 1 4)
+
+# order of operations is irrelivent
+# prints 22
+prn + * 5 4 - 3 1
+
+# although such examples will benefit from parens
+
+prn + (* 5 4) (- 3 1)
+
+# every function returns a value. prn returns the value it just printed
+# should print:
+# hello
+# hello
+prn (prn "hello")
+
+# lists in rix are really important. this is their syntax. they can contain any other datatypes
+
+[1 "potato" 3]
+
+# variables can be declared using the following syntax. notice the final semicolon
+
+foo: 5;
+
+# functions are defined as follows. the first argument to the function 'fn' is a list of parameters, and the second argument is a list of code that will be run
+
+test-function: fn [x] [+ x 1];
+
+# should print 3
+prn test-function 2
+
+# functions preserve the state of the environment that they were created in
+
+# remember the 'foo' value from the variable declaration section? at this point in the program, it's set to 5
+
+test-function2: fn [x] [+ x foo];
+
+# no matter what we set foo to be, test-function2 will always save the value 5 within it
+
+foo: 6;
+
+# prints 9
+prn test-function2 4
+
+# you can specifically prevent functions from saving the values of certain variables with the 'cloex' function
+
+test-function3: cloex [foo] fn [x] [+ x foo];
+
+# prints 10
+prn test-function3 4
+
+foo: 5;
+
+# prints 9
+prn test-function3 4
+
+# what if you want to get the value of a function without evaluating it? you can use $funcname syntax
+# what this actually does is get the value associated with the name "test-function3" and stop evaluating it there
+# prints fn [x] [+ x foo]
+prn $test-function3
+
+# names of things are values as well, and they can be accessed with 'symbolname syntax
+# prints test-function3
+prn 'test-function3
+
+# the ' prefix is called a "quote" operator. they can be put on basically anything you'd like
+# when you put them on lists, you can do some fun things
+# prints [1 2 5]
+prn '[1 2 ,foo]
+
+# that was the unquote operator, and it's used to evaluate things within lists
+# prints [1 2 6]
+prn '[1 2 ,(+ foo 1)]
+
+# you can also use the "splice" operator to do a similar thing, but if the expression you're evaluating returns a list, it's spliced into the parent list
+bar: '[1 2 ,foo];
+
+# prints [1 2 1 2 5]
+prn '[1 2 @bar]
+
+# prints [1 2 [1 2 5]]
+prn '[1 2 ,bar]
+
+# hashtables are written like this. like lists, they can have any type for their keys and values
+
+{key1 "value" "key2" [value1 value2]}
+
+# they can also use quotes and unquotes
+# prints {key1 5 key2 [1 2 5]}
+prn '{key1 ,foo key2 ,bar}
+
+# let is a function that takes in a hashtable and a list, and runs the code in that list with key-value pairs in the hashtable stored as variables
+let {potato 1 foo 3} 
+[
+    # prints [1 2 5 4]
+    prn '[@bar ,(+ potato foo)]
+]
+
+# the main type of conditional is if. it's just a function, with no special syntax, that takes in a bool and two lists
+
+# prints "hello"
+if (> foo 4)
+[
+    prn "hello"
+]
+[
+    prn "goodbye"
+]
+
+# prints "goodbye"
+if (> foo 5)
+[
+    prn "hello"
+]
+[
+    prn "goodbye"
+]
+
+# to explain:
+# modules
+# generics
+# typreq
+# types
+# custom evaluation
+# tokens
+# continuations

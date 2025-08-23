@@ -10,7 +10,7 @@ M: lexer-error summary
         [ dup length 6 > [ 6 head "..." append ] when ] bi* append 
     ] [ msg>> ": " append ] bi prepend ;
 ! M: lexer-error pprint* summary text ;
-
+CONSTANT: keywords { "if" "let" "fn" "consfn" "mac" "consmac" "quot" "uquot" "+" "-" "*" "/" }
 <PRIVATE
 DEFER: lex-val
 DEFER: lex-until-semi
@@ -36,8 +36,21 @@ DEFER: lex-until-semi
 : lex-semi ( lexer -- lexer semi/f ) CHAR: ; match-and-advance [ t "semicolon" <val> ] when% ;
 : lex-dec ( lexer -- lexer dec/f ) [ lex-word [ unclip-last CHAR: : = [ swap lex-until-semi swapd rix-decl boa "dec" <val> ] dwhen% ] when*% ] reset-if ;
 : lex-list ( lexer -- lexer list/f ) 91 match-and-advance [ V{  } clone swap [ skip-useless 93 match-and-advance not ] [ lex-val swapd suffix! swap ] while swap "list" <val> ] when% ;
-: lex-hash ( lexer -- lexer hash/f ) CHAR: { match-and-advance [ V{  } clone swap [ skip-useless CHAR: } match-and-advance not ] [ lex-val swapd suffix! swap ] while swap seq-to-pairs parse-hashtable "hash" <val> ] when% ;
-: lex-symbol ( lexer -- lexer symbol/f ) lex-word [ dup [ "tru" = ] [ "fal" = ] bi or [ "tru" = "bool" <val> ]  [ dup "nil" = [ drop f "nil" <val> ] [ "symbol" <val> ] if ] if ] when*% ;
+: lex-hash ( lexer -- lexer hash/f ) 
+    CHAR: { match-and-advance 
+    [ V{  } clone swap [ skip-useless CHAR: } match-and-advance not ] [ lex-val swapd suffix! swap ] while swap seq-to-pairs parse-hashtable "hash" <val> ] when% ;
+: lex-symbol ( lexer -- lexer symbol/f ) 
+    lex-word 
+    [ 
+        dup [ "tru" = ] [ "fal" = ] bi or 
+        [ "tru" = "bool" <val> ] 
+        [ 
+            dup "nil" = 
+            [ drop f "nil" <val> ]
+            [ dup keywords index [ t swap <val> ] [ "symbol" <val> ] if ] if 
+        ] if 
+    ] when*%
+    ;
 : lex-quote ( lexer -- lexer quote/f ) CHAR: ' match-and-advance [ lex-val "quote" <val> ] when% ;
 : lex-unquote ( lexer -- lexer unquote/f ) CHAR: , match-and-advance [ lex-val "unquote" <val> ] when% ;
 : lex-splice ( lexer -- lexer splice/f ) CHAR: @ match-and-advance [ lex-val "splice" <val> ] when% ;

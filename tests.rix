@@ -239,4 +239,11 @@ foobarbaz2: "good";
 assert= (and (not = an-inline2 "good") (not = an-inline2 "bad")) tru
 prn "passed test 46"
 
+prn "test 47: macros with closures"
+foobarbaz3: "bad";
+a-macro: mac [] [cloex [foobarbaz3] consfn [] [foobarbaz3]];
+foobarbaz2: "good";
+assert= (evl a-macro) "bad"
+prn "passed test 47"
+
 prn "all tests passed!"

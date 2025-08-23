@@ -1,6 +1,6 @@
 ! Copyright (C) 2024 Your name.
 ! See https://factorcode.org/license.txt for BSD license
-USING: kernel generic parser make assocs command-line ranges literals tools.continuations namespaces serialize arrays environment lexer system prettyprint splitting classes.tuple colors hashtables continuations sequences.deep prettyprint.custom prettyprint.sections  words classes.predicate quotations accessors vectors classes.parser math math.functions sequences combinators classes combinators.smart unicode strings io io.styles io.files io.encodings.utf8 io.streams.string math.parser combinators.short-circuit strings.parser summary io.encodings.ascii io.encodings.utf16 io.pathnames io.directories rix.lexer rix.common ;
+USING: kernel generic parser make assocs command-line ranges literals tools.continuations namespaces serialize arrays environment lexer system prettyprint splitting classes.tuple colors hashtables continuations sequences.deep prettyprint.custom prettyprint.sections  words classes.predicate quotations accessors vectors classes.parser math math.functions sequences combinators classes combinators.smart unicode strings io io.styles io.files io.encodings.utf8 io.streams.string math.parser combinators.short-circuit strings.parser summary io.encodings.ascii io.encodings.utf16 io.pathnames io.directories rix.lexer rix.common tools.time sorting kernel.private delegate delegate.protocols ;
 IN: rix
 
 DEFER: rix-eval
@@ -8,12 +8,14 @@ DEFER: rix-eval
 <PRIVATE
 
 DEFER: callstack-pop
+SYMBOL: rix-callcount
+SYMBOL: rix-profile
 <<
 GENERIC: pprint-rix-value ( value -- )
 GENERIC: underlying-rix ( value -- rix-hash )
 GENERIC: evaluates-to-something? ( evaluator value -- evaluator ? )
 TUPLE: callstack-element name params func ;
-
+CONSTANT: do-profiling? t
 
 >>
 
@@ -21,33 +23,51 @@ TUPLE: callstack-element name params func ;
 DEFER: include-file
 DEFER: eval-until-one
 DEFER: evaluator-parent
-
+TUPLE: rix-env cache seq ;
 : scan-rix-type ( -- type ) scan-new-class dup [ name>> 4 tail [ swap type>> = ] curry ] keep \ rix-value rot define-predicate-class ;
 SYNTAX: RIX-TYPE: scan-rix-type drop ;
 SYNTAX: GENR: scan-token dup [ "symbol" <val> ] bi@ ";" parse-tokens [ "symbol" <val> ] map "list" <val> genr boa "generic" <val> 2array suffix! ;
-: <builtin> ( types param-names quot -- func ) H{ } clone 1vector -rot [ [ evaluator-parent callstack-pop ] dip ] compose [ drop ] prepose V{ SYM: prim } "list" <val> func boa "func" <val> ;
+: <builtin> ( types param-names quot -- func ) 
+    H{ } clone H{ } clone 1vector rix-env boa -rot [ [ evaluator-parent callstack-pop ] dip ] compose [ drop ] prepose V{ SYM: prim } "list" <val> func boa "func" <val> ;
 : <builtin-inl> ( types param-names quot -- inl ) [ [ evaluator-parent callstack-pop ] dip ] compose [ drop ] prepose V{ SYM: prim } "list" <val> inl boa "inl" <val> ;
 : <macro> ( types env param-names quot body -- macro ) func boa "macro" <val> ;
-: <builtin-macro> ( types param-names quot -- macro ) V{ } clone -rot [ evaluator-parent callstack-pop ] compose [ drop ] prepose V{ SYM: prim } "list" <val> func boa "macro" <val> ;
+: <builtin-macro> ( types param-names quot -- macro )
+    H{ } clone H{ } clone 1vector rix-env boa -rot [ evaluator-parent callstack-pop ] compose [ drop ] prepose V{ SYM: prim } "list" <val> func boa "macro" <val> ;
 
-: <func> ( types param-names quot -- func ) [ drop ] prepend V{ } clone -rot V{ SYM: prim } "list" <val> func boa "func" <val> ;
+: <func> ( types param-names quot -- func ) [ drop ] prepend H{ } clone H{ } clone 1vector rix-env boa -rot V{ SYM: prim } "list" <val> func boa "func" <val> ;
 
 M: rix-value pprint* [ "RIX:" text [ pprint-rix-value ] with-string-writer text ] [ "ERROR:" text nip class-of name>> text ] recover ;
-CONSTANT: rix-version "0.06.0"
+CONSTANT: rix-version "0.07.0"
 : desc ( val desc -- val ) >>description ;
 >>
 SYMBOL: rix-breakpoints
 
+INSTANCE: rix-env sequence
+M: rix-env length seq>> length ;
+M: rix-env nth seq>> nth ;
+M: rix-env set-nth 
+    2dup length = ! elt n seq 
+    [ pick dup assoc? [ assoc-empty? ] dwhen% [ H{ } clone >>cache ] unless [ [ set-nth ] keep ] change-seq drop ] 
+    [ [ [ set-nth ] keep ] change-seq H{ } clone >>cache drop ] if ;
+M: rix-env set-length seq>> set-length ;
+M: rix-env lengthen seq>> lengthen ;
+M: rix-env like drop H{ } clone swap >vector rix-env boa ;
+M: rix-env equal? over rix-env? [ [ seq>> ] bi@ equal? ] [ 2drop f ] if ;
+
 ! value parent
-: <env> ( parent -- env ) H{ } clone suffix ;
-: env-get ( value env -- value/f ) dupd <reversed> [ at ] with find nip at ;
-: env-set ( symbol value env -- env ) [ last set-at ] keep ;
+: <env> ( parent -- env ) H{ } clone suffix ; inline
+: env-get ( value env -- value/f ) [ cache>> ] keep [ <reversed> f -rot [ at nip dup ] with find 2drop ] curry cache ;
+: env-set ( symbol value env -- env ) [ cache>> overd delete-at ] keep [ last set-at ] keep ; inline
 TUPLE: evaluator tokens to-export current-namespace extra-tokens callstack last-name last-result nesting-count ;
 M: evaluator clone 
     { 
         [ tokens>> clone ] [ to-export>> clone ] [ current-namespace>> clone ] [ extra-tokens>> clone ] [ callstack>> clone ] [ last-name>> clone ] [ last-result>> clone ] [ nesting-count>> ] 
     } cleave evaluator boa ;
-: env>seq ( env -- seq ) [ "hash" <val> ] map reverse ;
+! time name
+: rix-benchmark ( ..a evaluator quot: ( ..a -- ..b ) -- ..b ) 
+    do-profiling? [ swap callstack>> last name>> [ benchmark ] dip rix-profile [ H{ } clone ] initialize rix-profile [ [ [ [ + ] when* ] change-at ] keep ] change ] [ nip call ] if ; inline
+: rix-callcount-inc ( last-name -- ) rix-callcount [ H{ } clone ] initialize rix-callcount [ [ [ [ 1 + ] [ 1 ] if* ] change-at ] keep ] change ;
+: env>seq ( env -- seq ) seq>> [ "hash" <val> ] map reverse ;
 M: evaluator underlying-rix [ {
             [ tokens>> [ "list" <val> ] [ f "nil" <val> ] if* SYM: tokens ,, ]
             [ to-export>> [ "hash" <val> ] [ f "nil" <val> ] if* SYM: to-export ,, ]
@@ -76,7 +96,8 @@ M: rix-value evaluates-to-something?
 : push-tokens ( eval tokens -- eval ) [ prepend! ] curry change-tokens ;
 : peek-token ( eval -- eval token ) dup tokens>> length 0 > [ dup tokens>> first ] 
     [ dup extra-tokens>> last dup length 0 > [ first ] [ drop [ [ pop drop ] keep ] change-extra-tokens peek-token ] if ] if ;
-: set-last-result ( eval result -- eval ) [ >>last-result ] when* ; 
+: set-last-result ( eval result -- eval ) [ >>last-result ] when* ;
+
 : <evaluator> ( tokens global -- evaluator ) H{  } clone swap V{  } dup [ clone ] bi@ "<anon>" f 0 evaluator boa ;
 : callstack-push ( evaluator name params func -- ) callstack-element boa [ over push ] curry change-callstack drop ;
 : callstack-pop ( evaluator -- evaluator ) [ dup length 0 = [ dup pop drop ] unless ] change-callstack ;
@@ -134,7 +155,7 @@ M: genr underlying-rix [ name>> SYM: name associate ] [ params>> "list" <val> SY
 
 : evaluator-<env> ( evaluator -- evaluator ) dup current-namespace>> clone <env> >>current-namespace ;
 
-: evaluator-parent ( evaluator -- evaluator ) dup current-namespace>> but-last [ "Tried to get the parent of a global enviorment" eval-error f ] unless* >>current-namespace ;
+: evaluator-parent ( evaluator -- evaluator ) dup current-namespace>> but-last [ "Tried to get the parent of a global enviorment" eval-error f ] unless* H{ } clone >>cache >>current-namespace ;
 
 : relivent-terminator? ( nesting-count evaluator -- nesting-count ? ) 
     [ nesting-count>> ] [ peek-token nip terminator? ] bi 
@@ -214,11 +235,7 @@ DEFER: unquote-scan
 : eval-all-tokens ( tokens env -- evaluator ) <evaluator> eval-all ;
 
 : extra-tokens>tokens ( eval -- eval ) dup extra-tokens>> dup length 0 > [ pop ] [ drop V{ } clone ] if >>tokens ;
-! evaluator tokens
-! : eval-tokens ( evaluator tokens -- evaluator result )
-!    [ dup tokens>> [ swap [ push ] keep ] curry change-extra-tokens V{ } clone >>tokens ] dip
-!    push-tokens eval-all extra-tokens>tokens dup last-result>>
-!    ;
+
 : eval-expr ( evaluator -- evaluator result ) 
     pop-token drop [ nesting-count>> ] keep 
     [ [ dup can-cont? [ relivent-terminator? not ] dwhen% ] keep swap ] 
@@ -262,7 +279,7 @@ M: func clone { [ types>> ] [ env>> env-deep-clone ] [ param-names>> ] [ quot>> 
 
 : make-macro ( evaluator is-mac? -- evaluator macro )
     over
-    [ current-namespace>> but-last ] 
+    [ current-namespace>> but-last H{ } clone >>cache ] 
     [ pick [ "params" mac-get-value ] [ "params" get-value ] if [ length TYP: any <array> ] keep ] 
     [ [ rot ] 2dip rot [ "body" mac-get-value* ] [ "body" get-value* ] if ] tri [ swap ] 2dip
     [ dup sequence? not [ 1vector ] when f "return" <val> suffix f "begnexpr" <val> prefix push-tokens eval-expr dup sequence? [ push-tokens ] [ push-token ] if ] swap <macro> "quote" <val> ;
@@ -275,30 +292,30 @@ M: func clone { [ types>> ] [ env>> env-deep-clone ] [ param-names>> ] [ quot>> 
 
 : evaluator-callstack-push ( name evaluator params func -- evaluator params func ) [ [ swap ] 2dip callstack-push ] 3keep ;
 
-: compress-env ( env -- env ) <reversed> H{ } clone [ swap assoc-union ] reduce 1vector ;
+: compress-env ( env -- env ) [ <reversed> H{ } clone [ swap assoc-union ] reduce 1vector ] change-seq ;
 
 : env-set-parent ( env parent -- env ) over empty? not [ [ unclip-last swap ] dip append swap suffix ] [ nip ] if ;
 : env-parent-union ( env -- env ) dup length 1 > [ 2 cut* first2 swap assoc-union suffix ] when ;
 : load-env ( env1 env2 -- env ) compress-env env-set-parent env-parent-union ;
 
 : with-env-up ( eval quot: ( ..a eval -- ..b eval ) -- ..b eval ) 
-    over current-namespace>> [ [ dup length 1 > [ but-last ] [ "Tried to get the parent of a global environment" eval-error ] if ] change-current-namespace ] 2dip 
+    over current-namespace>> [ [ dup length 1 > [ but-last H{ } clone >>cache ] [ "Tried to get the parent of a global environment" eval-error ] if ] change-current-namespace ] 2dip 
     [ call ] dip last [ suffix ] curry change-current-namespace ; inline
 ! eval types env params quot body
 ! eval body params type parent
 : make-func ( evaluator is-macro? -- evaluator func )
     over
-    [ current-namespace>> but-last env-deep-clone ] 
+    [ current-namespace>> but-last env-deep-clone H{ } clone >>cache ] 
     [ pick [ "params" mac-get-value ] [ "params" get-value ] if [ length TYP: any <array> ] keep ] 
     [ [ rot ] 2dip rot [ "body" mac-get-value* ] [ "body" get-value* ] if ] tri [ swap ] 2dip
     [ dup sequence? not [ 1vector ] when f "return" <val> suffix f "begnexpr" <val> prefix push-tokens f ] swap func boa "func" <val> "quote" <val> ;
 
 : change-global-env ( env quot -- env ) 0 -rot change-nth ; inline
 
-: find-global-env ( env -- global ) first 1vector ;
+: find-global-env ( env -- global ) [ first 1vector ] keep like ;
 
 : find-specific-env ( env pred: ( ... env -- ... ? ) -- env ) 
-    find nip 1vector ; inline
+    [ find nip 1vector ] keepd like ; inline
 
 : with-global-env ( eval quot -- eval ) [ [ dup find-global-env ] change-current-namespace ] dip rot [ call ] dip >>current-namespace ; inline
 
@@ -314,22 +331,20 @@ M: func clone { [ types>> ] [ env>> env-deep-clone ] [ param-names>> ] [ quot>> 
 
 : closure? ( val -- ? ) type>> { "func" "variadic" "macro" "variadic-macro" } [ = ] with any? ;
 
+MEMO: rix-at ( key hashtable -- value/f ) { hashtable } declare at ; inline
+
 : global-env ( -- env )
     H{
         GENR: comb x y ;
-        GENR: < x y ;
-        GENR: > x y ;
-        GENR: <= x y ;
-        GENR: >= x y ;
         GENR: prn* val ;
-        { SYM: + [ { TYP: number TYP: number } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi + "number" <val> ] <builtin> "adds two numbers" desc ] }
-        { SYM: - [ { TYP: number TYP: number } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi - "number" <val> ] <builtin> "subtracts two numbers" desc ] }
-        { SYM: * [ { TYP: number TYP: number } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi * "number" <val> ] <builtin> "multiplies two numbers" desc ] }
-        { SYM: / [ { TYP: number TYP: number } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi / "number" <val> ] <builtin> "divides two numbers" desc ] }
-        { SYM: number.< [ { TYP: number TYP: number } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi < "bool" <val> ] <builtin> "compares two numbers" desc ] }
-        { SYM: number.> [ { TYP: number TYP: number } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi > "bool" <val> ] <builtin> "compares two numbers" desc ] }
-        { SYM: number.<= [ { TYP: number TYP: number } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi <= "bool" <val> ] <builtin> "compares two numbers" desc ] }
-        { SYM: number.>= [ { TYP: number TYP: number } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi >= "bool" <val> ] <builtin> "compares two numbers" desc ] }
+        { SYM: + [ t "+" <val> "adds two numbers" desc ] }
+        { SYM: - [ t "-" <val> "subtracts two numbers" desc ] }
+        { SYM: * [ t "*" <val> "multiplies two numbers" desc ] }
+        { SYM: / [ t "/" <val> "divides two numbers" desc ] }
+        { SYM: < [ { TYP: number TYP: number } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi < "bool" <val> ] <builtin> "compares two numbers" desc ] }
+        { SYM: > [ { TYP: number TYP: number } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi > "bool" <val> ] <builtin> "compares two numbers" desc ] }
+        { SYM: <= [ { TYP: number TYP: number } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi <= "bool" <val> ] <builtin> "compares two numbers" desc ] }
+        { SYM: >= [ { TYP: number TYP: number } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi >= "bool" <val> ] <builtin> "compares two numbers" desc ] }
         { SYM: = [ { TYP: any TYP: any } { SYM: x SYM: y } [ dup [ "x" get-value* ] [ "y" get-value* ] bi = "bool" <val> ] <builtin> "checks for equality" desc ] }
         { SYM: nop [ f "nop" <val> ] }
         { SYM: rest [ { TYP: list } { SYM: list } [ dup "list" get-value* 1 tail ] <builtin>
@@ -363,13 +378,13 @@ M: func clone { [ types>> ] [ env>> env-deep-clone ] [ param-names>> ] [ quot>> 
         { SYM: fbody [ { TYP: callable  } { SYM: func } [ dup "func" get-value body>> ] <builtin> "gets the body of a function. primatives return [prim]" desc ] }
         { SYM: fparams [ { TYP: callable } { SYM: func } [ dup "func" get-value param-names>> "list" <val> ] <builtin> "gets the params of a function" desc ] }
         { SYM: list>string [ { TYP: list } { SYM: list } [ dup "list" get-value [ value>> ] "" map-as "string" <val> ] <builtin> "converts a list to a string" desc ] }
-        { SYM: at [ { TYP: any TYP: hashstruct } { SYM: key SYM: hash } [ dup [ "key" get-value* ] [ "hash" get-value ] bi at [ f "bool" <val> ] unless* ] <builtin> "gets the value at key stored within 'hash'" desc ] }
+        { SYM: at [ { TYP: any TYP: hashstruct } { SYM: key SYM: hash } 
+            [ dup [ "key" get-value* ] [ "hash" get-value ] bi rix-at [ f "bool" <val> ] unless* ] <builtin> "gets the value at key stored within 'hash'" desc ] }
         { SYM: not [ { TYP: any } { SYM: x } [ dup "x" get-value not "bool" <val> ] <builtin> "preforms 'not' on a bool" desc ] }
         { SYM: inl [ { TYP: list TYP: any } { SYM: params SYM: body } [ t make-inl push-token ] <builtin-macro> "creates a function with params and a body whose results may depend on the surrounding enviroment" desc ] } 
-        { SYM: fn [ { TYP: list TYP: any } { SYM: params SYM: body } [ t make-func push-token ] <builtin-macro> "creates a function with params and a body" desc ] }
-        { SYM: mac [ { TYP: list TYP: any } { SYM: params SYM: body } ! 
-                      [ t make-macro push-token ] <builtin-macro>
-                      "creates a function with locked params (which must be accessed via 'unlock') and a body that returns either a list or a single value that is pushed onto the token array" desc ] }
+        { SYM: fn [ t "fn" <val> "creates a function with params and a body" desc ] }
+        { SYM: mac [ t "mac" <val> 
+            "creates a function with locked params (which must be accessed via 'unlock') and a body that returns either a list or a single value that is pushed onto the token array" desc ] }
         { SYM: varinl [ { TYP: list TYP: any } { SYM: params SYM: body } [ t make-inl clone [ "inline-variadic" >>type ] change-value push-token ] <builtin-macro>
                          "creates a function with params and a body whose results may depend on the surrounding enviroment. the last named param is a list of every value between the penultimate param and a ; token" desc ] } 
         { SYM: vari [ { TYP: list TYP: any } { SYM: params SYM: body } [ t make-func clone [ "variadic" >>type ] change-value push-token ] <builtin-macro>
@@ -382,6 +397,26 @@ M: func clone { [ types>> ] [ env>> env-deep-clone ] [ param-names>> ] [ quot>> 
         { SYM: imps? [ { TYP: generic TYP: any } { SYM: gen SYM: val } [ dup [ "gen" get-value name>> clone ] [ "val" get-value* ] bi type>> [ "." append prepend ] curry
                                                                          change-value over current-namespace>> env-get [ t ] when% "bool" <val> ]
                        <builtin> "tests if the type of this value implements a generic" desc ] }
+        { SYM: setbody 
+            [ 
+                { TYP: callable TYP: list } { SYM: func SYM: list } 
+                [ 
+                    dup [ "func" get-value* clone ] [ "list" get-value* ] bi [ [ clone ] dip >>body ] curry change-value 
+                ] <builtin> "sets the body of a callable without changing its type" desc
+            ] 
+        }
+        { SYM: str-first [ { TYP: string } { SYM: string } [ dup "string" get-value* first "number" <val> ] <builtin> "gets the first character of a string as a unicode codepoint" desc ] }
+        { SYM: str-len [ { TYP: string } { SYM: string } [ dup "string" get-value* length "number" <val> ] <builtin> "gets the length of a string" desc ] }
+        { SYM: str-rest 
+        [ { TYP: string } { SYM: string } [ dup "string" get-value* rest "string" <val> ] <builtin> "gets the all characters in a string but the first one, and returns them as a string" desc ] }
+        { SYM: setparams
+            [ 
+                { TYP: callable TYP: list } { SYM: func SYM: list } 
+                [ 
+                    dup [ "func" get-value* clone ] [ "list" get-value ] bi [ [ clone ] dip >>param-names ] curry change-value 
+                ] <builtin> "sets the param names of a callable without changing its type" desc
+            ] 
+        }
         { SYM: timps? [ { TYP: generic TYP: typ } { SYM: gen SYM: val }
                         [ dup [ "gen" get-value name>> clone ] [ "val" get-value* ] bi value>> [ "." append prepend ] curry change-value over current-namespace>> env-get [ t ] when% "bool" <val> ]
                         <builtin> "tests if this type implements a generic" desc ] }
@@ -399,12 +434,10 @@ M: func clone { [ types>> ] [ env>> env-deep-clone ] [ param-names>> ] [ quot>> 
                        <builtin> "returns a file-writing (overrides current file contents) output stream. supported values of 'encoding' are \"ascii\", \"utf8\" and \"utf16\"" desc ] }
         { SYM: fapp [ { TYP: string TYP: string } { SYM: path SYM: encoding } [ dup [ "path" get-value ] [ "encoding" get-value { { "ascii" ascii } { "utf8" utf8 } { "utf16" utf16 } } case ] bi <file-appender> "stream" <val> ]
                       <builtin> "returns a file-appending output stream. supported values of 'encoding' are \"ascii\", \"utf8\" and \"utf16\"" desc ] }
-        { SYM: consfn [ { TYP: list TYP: list } { SYM: params SYM: body } [ f make-func value>> ] <builtin>
-                         "constructs a function with params and a body. consfn is a function itself, meaning it evaluates its input parameters, so you can create a function with a runtime-computed definition" desc ] }
+        { SYM: consfn [ t "consfn" <val> "constructs a function with params and a body. consfn is a function itself, meaning it evaluates its input parameters, so you can create a function with a runtime-computed definition" desc ] }
         { SYM: consinl [ { TYP: list TYP: list } { SYM: params SYM: body } [ f make-inl value>> ] <builtin>
                           "constructs an inline function; see the description of 'consfn' for the difference between this and 'inl'" desc ] }
-        { SYM: consmac [ { TYP: list TYP: list } { SYM: params SYM: body } [ f make-macro value>> ] <builtin>
-                          "constructs a macro; see the description of 'consfn' for the difference between this and 'mac'" desc ] }
+        { SYM: consmac [ t "consmac" <val> "constructs a macro; see the description of 'consfn' for the difference between this and 'mac'" desc ] }
         { SYM: consvarinl [ { TYP: list TYP: list } { SYM: params SYM: body } [ f make-inl [ "inline-variadic" >>type ] change-value ] <builtin>
                          "constructs a variadic inline function; see the description of 'consfn' for the difference between this and 'varinl'" desc ] } 
         { SYM: consvari [ { TYP: list TYP: list } { SYM: params SYM: body } [ f make-func [ "variadic" >>type ] change-value ] <builtin>
@@ -429,9 +462,6 @@ M: func clone { [ types>> ] [ env>> env-deep-clone ] [ param-names>> ] [ quot>> 
         ! eval module
         { SYM: incl [ { TYP: symbol } { SYM: name } [ dup "name" mac-get-value [ include-file [ value>> [ eval-set-global ] assoc-each ] keep ] keep "." split last "symbol" <val> swap eval-set-global ] <builtin-macro>
                       "includes the module specified by 'name'. if you import two modules with conflicting names, you can be specific by using 'name@modulename' syntax" desc ] }
-        { SYM: if [ { TYP: any TYP: any TYP: any } { SYM: cond SYM: body1 SYM: body2 }
-                     [ dup [ "cond" get-value ] [ "body1" get-value* ] [ "body2" get-value* ] tri ? dup type>> "list" = [ value>> push-tokens f ] when ] <builtin>
-                     "based on the boolean cond, picks either body1 or body2 and evaluates it" desc ] }
         { SYM: typreq
           [
               { TYP: list TYP: callable } { SYM: list SYM: func } [ dup [ "func" get-value* ] [ "list" get-value ] bi overd swap [ swap eval-tokens-results swap ] with-env-up swap nip [ >>types ] curry change-value ]
@@ -470,9 +500,9 @@ M: func clone { [ types>> ] [ env>> env-deep-clone ] [ param-names>> ] [ quot>> 
                          [ dup [ "sym" get-value* ] [ "params" get-value* ] bi [ genr boa "generic" <val> ] keepd rot [ to-export>> set-at ] 3keep spin [ eval-set-global ] keep ]
                          <builtin-inl> "creates a new generic with the given name and params, exports it, and assigns it to that name within the global scope" desc ] }
         { SYM: cstack [ { } { } [ dup callstack>> [ [ params>> ] [ name>> ] bi prepend "parens" <val> ] map "list" <val> ] <builtin> "returns the callstack" desc ] }
-        { SYM: quot [ { TYP: any } { SYM: val } [ dup "val" get-value* "quote" <val> ] <builtin> "quotes a value" desc ] }
+        { SYM: quot [ t "quot" <val> "quotes a value" desc ] }
         { SYM: res [ { TYP: symbol } { SYM: val } [ dup "val" get-value "resolve" <val> ] <builtin> "makes a symbol a resolve expression ($sym syntax)" desc ] }
-        { SYM: uquot [ { TYP: any } { SYM: val } [ dup "val" get-value* "unquote" <val> ] <builtin> "makes a value an unquote" desc ] }
+        { SYM: uquot [ t "uquot" <val> "makes a value an unquote" desc ] }
         { SYM: splice [ { TYP: any } { SYM: val } [ dup "val" get-value* "splice" <val> ] <builtin> "makes a value a splice" desc ] }
         { SYM: err [ { TYP: any } { SYM: str } [ dup "str" get-value \ eval-error boa "error" <val> push-token f ]  <builtin> "throws an error with the given string as a message" desc ] }
         { SYM: new-err [ { TYP: string } { SYM: str } [ dup "str" get-value \ eval-error boa "error" <val> ]  <builtin> "returns an error with the given string as a message" desc ]  }
@@ -486,12 +516,9 @@ M: func clone { [ types>> ] [ env>> env-deep-clone ] [ param-names>> ] [ quot>> 
         { SYM: assert= [ { TYP: any TYP: any } { SYM: one SYM: two } [ dup [ "one" get-value* ] [ "two" get-value* ] bi [ = ] 2check [ drop ]
                                                    [ [ [ pprint-rix-value ] with-string-writer ] bi@ " != " prepend append "Assert failed: " prepend eval-error ] if ]
                          <builtin> "throws an error if 'one' and 'two' aren't equal" desc ] }
+        { SYM: if [ t "if" <val> "based on the boolean cond, picks either body1 or body2 and evaluates it" desc ] }
         { SYM: os [ { } { } [ os name>> "string" <val> ] <builtin> "gets the current operating system" desc ] }
-        { SYM: let [ { TYP: hashstruct TYP: list } { SYM: hash SYM: code } [
-                         dup [ "code" get-value ] [ "hash" get-value ] bi 
-                         rot [ swap [ suffix ] curry change-current-namespace swap f "scopeup" <val> suffix f "begnexpr" <val> prefix f "endexpr" <val> suffix
-                         push-tokens f swap ] with-env-up swap ] <builtin>
-                     "evaluates 'code' within a new scope defined with the keys and values in 'hash'" desc ] }
+        { SYM: let [ t "let" <val> "evaluates 'code' within a new scope defined with the keys and values in 'hash'" desc ] }
         { SYM: up [ { TYP: continuation TYP: symbol } { SYM: cont SYM: sym } [ dup [ "sym" get-value* ] [ "cont" get-value ] bi [ [ current-namespace>> env-get ] keep ] with-env-up drop ] <builtin>
                     "returns the result of retriving 'sym' in the parent enviroment of the one within cont" desc ] }
         { SYM: getval [ { TYP: continuation TYP: symbol } { SYM: cont SYM: sym } [ dup [ "sym" get-value* ] [ "cont" get-value ] bi current-namespace>> env-get ] <builtin>
@@ -563,8 +590,8 @@ M: func clone { [ types>> ] [ env>> env-deep-clone ] [ param-names>> ] [ quot>> 
                         swap 
                         [ 
                             value>> 
-                            { 
-                                [ types>> swap 1vector ] 
+                            { ! TODO: lsp weird offset here 
+                                [ types>> swap 1vector H{ } clone swap rix-env boa ] 
                                 [ param-names>> ] 
                                 [ drop [ dup sequence? not [ 1vector ] when f "return" <val> suffix f "begnexpr" <val> prefix push-tokens f ] ]
                                 [ body>> ]
@@ -578,7 +605,7 @@ M: func clone { [ types>> ] [ env>> env-deep-clone ] [ param-names>> ] [ quot>> 
         }
         { SYM: rixparse [ { TYP: string } { SYM: code } [ dup "code" get-value lex-str "list" <val> ] <builtin> "parses a rix string, returning a list of tokens" desc ] }
        ! types env param-names quot body  
-    } clone [ [ clone ] [ dup quotation? [ call( -- val ) ] when ] bi* ] assoc-map 1vector
+    } clone [ [ clone ] [ dup quotation? [ call( -- val ) ] when ] bi* ] assoc-map 1vector H{ } clone swap rix-env boa
     ;
 
 M: rix-value pprint-rix-value dup value>> hashtable? [ dup type>> "hash" = not [ [ type>> write ] [ value>> "hash" <val> pprint-rix-value ] bi ] [ value>> pprint ] if ] [ value>> pprint ] if ;
@@ -606,6 +633,12 @@ M: rix-value pprint-rix-value dup value>> hashtable? [ dup type>> "hash" = not [
 PRIVATE>
 : eval-str-to-str ( str -- str ) eval-str [ pprint-rix-value ] with-string-writer  ;
 
+: print-rix-callcount ( -- ) 
+    rix-callcount get-global inv-sort-values [ [ ": " append write ] dip >dec print ] assoc-each ;
+
+: print-rix-profile ( -- ) 
+    rix-profile get-global inv-sort-values dup values sum [ / 10000 * [ ": " append write ] dip 100 /mod >fixnum [ >dec ] bi@ CHAR: . prefix append CHAR: % suffix print ] curry assoc-each ;
+
 : repl ( -- )
         "Welcome to the rix repl! (" write rix-version ")" append print
         "Press Control+D to quit" print V{ } clone global-env <evaluator>
@@ -628,7 +661,42 @@ PRIVATE>
                                                [ "file name must end in .rix" eval-error ] if ;
 : run-rix ( -- )
     command-line get-global dup length 0 > [ [ [ run-rix-file ] [ nip . ] recover ] each ] [ drop repl ] if ;
+! { "if" "let" "fn" "consfn" "mac" "consmac" "quot" "uquot" "+" "-" "*" "/" }
+<PRIVATE
+PREDICATE: rix-keyword < rix-value type>> keywords index ;
+M: rix-keyword pprint-rix-value type>> write ;
 
+CONSTANT: if-function 
+    $[ { TYP: any TYP: any TYP: any } { SYM: cond SYM: body1 SYM: body2 }
+            [ dup [ "cond" get-value ] [ "body1" get-value* ] [ "body2" get-value* ] tri ? dup type>> "list" = [ value>> push-tokens f ] when ] <builtin>
+       ]
+CONSTANT: let-function 
+    $[ { TYP: hashstruct TYP: list } { SYM: hash SYM: code } [
+                         dup [ "code" get-value ] [ "hash" get-value ] bi 
+                         rot [ swap [ suffix ] curry change-current-namespace swap f "scopeup" <val> suffix f "begnexpr" <val> prefix f "endexpr" <val> suffix
+                         push-tokens f swap ] with-env-up swap ] <builtin> 
+                     ]
+CONSTANT: fn-function $[ { TYP: list TYP: any } { SYM: params SYM: body } [ t make-func push-token ] <builtin-macro> ]
+
+CONSTANT: consfn-function $[ { TYP: list TYP: list } { SYM: params SYM: body } [ f make-func value>> ] <builtin> ]
+
+CONSTANT: mac-function $[ { TYP: list TYP: any } { SYM: params SYM: body } [ t make-macro push-token ] <builtin-macro> ]
+
+CONSTANT: consmac-function $[ { TYP: list TYP: any } { SYM: params SYM: body } [ f make-macro value>> ] <builtin> ]
+
+CONSTANT: quot-function $[ { TYP: any } { SYM: val } [ dup "val" get-value* "quote" <val> ] <builtin> ] 
+
+CONSTANT: uquot-function $[ { TYP: any } { SYM: val } [ dup "val" get-value* "unquote" <val> ] <builtin> ] 
+
+CONSTANT: +-function $[ { TYP: number TYP: number } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi + "number" <val> ] <builtin> ]
+
+CONSTANT: --function $[ { TYP: number TYP: number } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi - "number" <val> ] <builtin> ]
+
+CONSTANT: *-function $[ { TYP: number TYP: number } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi * "number" <val> ] <builtin> ]
+
+CONSTANT: /-function $[ { TYP: number TYP: number } { SYM: x SYM: y } [ dup [ "x" get-value ] [ "y" get-value ] bi / "number" <val> ] <builtin> ]
+
+PRIVATE>
 : rix-eval ( eval tok -- eval result/f ) 
     {
         { [ dup type>> "module-call" = ] [ 
@@ -661,6 +729,42 @@ PRIVATE>
         { [ dup type>> "error" = ] [
             value>> throw 
         ] }
+        { [ dup type>> "if" = ] [
+            drop if-function push-token "if" >>last-name f 
+        ] }
+        { [ dup type>> "let" = ] [
+            drop let-function push-token "let" >>last-name f 
+        ] }
+        { [ dup type>> "fn" = ] [
+            drop fn-function push-token "fn" >>last-name f 
+        ] }
+        { [ dup type>> "consfn" = ] [
+            drop consfn-function push-token "consfn" >>last-name f 
+        ] }
+        { [ dup type>> "mac" = ] [
+            drop mac-function push-token "mac" >>last-name f 
+        ] }
+        { [ dup type>> "consmac" = ] [
+            drop consmac-function push-token "consmac" >>last-name f 
+        ] }
+        { [ dup type>> "quot" = ] [
+            drop quot-function push-token "quot" >>last-name f 
+        ] }
+        { [ dup type>> "uquot" = ] [
+            drop uquot-function push-token "uquot" >>last-name f 
+        ] }
+        { [ dup type>> "+" = ] [
+            drop +-function push-token "+" >>last-name f 
+        ] }
+        { [ dup type>> "-" = ] [
+            drop --function push-token "-" >>last-name f 
+        ] }
+        { [ dup type>> "*" = ] [
+            drop *-function push-token "*" >>last-name f
+        ] }
+        { [ dup type>> "/" = ] [
+            drop /-function push-token "/" >>last-name f 
+        ] }
         { [ dup type>> "quote" = ] [
             unquote-scan 
         ] }
@@ -683,56 +787,58 @@ PRIVATE>
             value>> [ symbol>> "symbol" <val> ] [ expr>> ] bi swapd eval-tokens rot [ [ rot env-set ] 2curry change-current-namespace ] keepd 
         ] }
         { [ dup type>> "inl" = ] [
-             [ evaluator-<env> [ last-name>> ] keep ] dip
+             [ evaluator-<env> [ last-name>> dup rix-callcount-inc ] keep ] dip
              [ value>> param-names>> length target-to-results ] keep evaluator-callstack-push
              [ value>> types>> typecheck ] 2keep swapd
              [ value>> param-names>> [ tuck current-namespace>> ] dip swap [ rot env-set ] 2reduce >>current-namespace ] keep 
-             value>> [ body>> ] [ quot>> ] bi call( evaluator body -- evaluator result/f  )
-        ] }
+             value>> [ body>> ] [ quot>> ] bi [ call( evaluator body -- evaluator result/f ) ] curry overd rix-benchmark
+         ] }
         { [ dup type>> "func" = ] [
-             [ [ last-name>> ] keep ] dip
+             [ [ last-name>> dup rix-callcount-inc ] keep ] dip
              [ value>> param-names>> length target-to-results ] keep evaluator-callstack-push
              [ value>> types>> typecheck ] 2keep swapd
              [ value>> env>> [ [ <env> ] dip load-env ] curry change-current-namespace ] keep
              [ value>> param-names>> [ tuck current-namespace>> ] dip swap [ rot env-set ] 2reduce >>current-namespace ] keep
-             value>> [ body>> ] [ quot>> ] bi call( evaluator body -- evaluator result/f  )
-        ] }
+             value>> [ body>> ] [ quot>> ] bi [ call( evaluator body -- evaluator result/f  ) ] curry overd rix-benchmark
+         ] }
         { [ dup type>> "macro" = ] [
-            [ [ last-name>> ] keep ] dip
+            [ [ last-name>> dup rix-callcount-inc ] keep ] dip
             [ value>> param-names>> length tpopn ] keep evaluator-callstack-push
             [ value>> types>> typecheck ] 2keep swapd
             [ [ "lock" <val> ] map ] 2dip
             [ value>> env>> [ [ <env> ] dip load-env ] curry change-current-namespace ] keep
             [ value>> param-names>> [ tuck current-namespace>> ] dip swap [ rot env-set ] 2reduce >>current-namespace ] keep
-            value>> [ body>> ] [ quot>> ] bi call( evaluator body -- evaluator ) f 
+            value>> [ body>> ] [ quot>> ] bi [ call( evaluator body -- evaluator ) f ] curry overd rix-benchmark 
         ] }
         { [ dup type>> "variadic" = ] [
-            [ [ last-name>> ] keep ] dip
+            [ [ last-name>> dup rix-callcount-inc ] keep ] dip
             [ value>> param-names>> length 1 - target-to-results [ eval-until-semi "list" <val> ] dip swap suffix ] keep evaluator-callstack-push
             [ value>> types>> typecheck ] 2keep swapd
             [ value>> env>> [ [ <env> ] dip load-env ] curry change-current-namespace ] keep
             [ value>> param-names>> [ tuck current-namespace>> ] dip swap [ rot env-set ] 2reduce >>current-namespace ] keep
-            value>> [ body>> ] [ quot>> ] bi call( evaluator body -- evaluator result/f  )
+            value>> [ body>> ] [ quot>> ] bi [ call( evaluator body -- evaluator result/f  ) ] curry overd rix-benchmark
         ] }
         { [ dup type>> "variadic-macro" = ] [
-            [ [ last-name>> ] keep ] dip
+            [ [ last-name>> dup rix-callcount-inc ] keep ] dip
             [ value>> param-names>> length 1 - tpopn [ tpop-until-semi "list" <val> ] dip swap suffix ] keep evaluator-callstack-push
             [ value>> types>> typecheck ] 2keep swapd
             [ [ "lock" <val> ] map ] 2dip
             [ value>> env>> [ [ <env> ] dip load-env ] curry change-current-namespace ] keep
             [ value>> param-names>> [ tuck current-namespace>> ] dip swap [ rot env-set ] 2reduce >>current-namespace ] keep
-            value>> [ body>> ] [ quot>> ] bi call( evaluator body -- evaluator ) f 
+            value>> [ body>> ] [ quot>> ] bi [ call( evaluator body -- evaluator ) f ] curry overd rix-benchmark
         ] }
         { [ dup type>> "inline-variadic" = ] [
-            [ evaluator-<env> [ last-name>> ] keep ] dip
+            [ evaluator-<env> [ last-name>> dup rix-callcount-inc ] keep ] dip
             [ value>> param-names>> length target-to-results [ eval-until-semi "list" <val> ] dip swap suffix ] keep evaluator-callstack-push
             [ value>> types>> typecheck ] 2keep swapd
-            [ value>> param-names>> [ tuck current-namespace>> ] dip swap [ rot env-set ] 2reduce >>current-namespace ] keep value>> [ body>> ] [ quot>> ] bi call( evaluator body -- evaluator result/f )
+            [ value>> param-names>> [ tuck current-namespace>> ] dip swap [ rot env-set ] 2reduce >>current-namespace ] keep value>> [ body>> ] [ quot>> ] bi 
+            [ call( evaluator body -- evaluator result/f  ) ] curry overd rix-benchmark
         ] }
         { [ dup type>> "generic" = ] [
              value>> [ eval-until-one swap ] dip
              pick [ name>> value>> "." prepend ] [ type>> ] bi* prepend "symbol" <val> rot 2array >vector push-tokens f 
         ] }
+        { [ dup type>> { "number" "string" "continuation" "stream" "lock" "hash" "list" "bool" "nil" "type" } index ] [ ] }
         [ 
             [ evaluates-to-something? ] 1check
             [ 

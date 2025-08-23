@@ -1,38 +1,81 @@
 # memoization
 exp memo-hash: {};
 exp memoize: 
-    mac [params body] 
-    '[
-        cloex [memo-hash] consfn ,(unlock params) 
+    desc "creates a memoized function with params and a body. memoized functions save their results in a hashtable to be looked up if the function is called with the same params again" 
+    mac [params body]
+    [
+        let '{key ,(quot '[@(map unlock params fn [x] [uquot $x]) ,(unlock body)])}
         [
-            if (prn at prn ,(unlock body) prn memo-hash) 
-            [
-                let ,(quot '{val ,(uquot '(at ,(quot map (unlock params) fn [param] [uquot $param]) at ,(unlock body) memo-hash))})         
+            '[
+                cloex [memo-hash] consfn ,(unlock params)
                 [
-                    if $val
+                    if (at ,$key memo-hash) 
                     [
-                        $val
-                    ]
+                        at ,$key memo-hash
+                    ] 
                     [
-                        let ,(quot '{fres ,(uquot '(,(consfn (unlock params) (unlock body)) @(unlock params)))})
+                        let ,(quot '{res ,(uquot '(let {} ,(unlock body)))})
                         [
-                            modf 'memo-hash (setat ,(unlock body) (setat ,(quot map (unlock params) fn [param] [uquot $param]) $fres (at ,(unlock body) memo-hash)) memo-hash)
-                            $fres
+                            modf 'memo-hash (setat ,$key $res memo-hash)
+                            $res
                         ]
                     ]
                 ]
-            ] 
-            [
-                let ,(quot '{fres ,(uquot '(,(consfn (unlock params) (unlock body)) @(unlock params)))})
-                [
-                    modf 'memo-hash (prn setat ,(unlock body) ,(quot '{,(uquot quot map (unlock params) fn [param] [uquot $param]) ,,$fres}) memo-hash)
-                    prn "in this section"
-                    $fres
-                ]
-
             ]
         ]
     ];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # consfn 
 # [a b] 
