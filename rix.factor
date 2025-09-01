@@ -37,7 +37,7 @@ SYNTAX: GENR: scan-token dup [ "symbol" <val> ] bi@ ";" parse-tokens [ "symbol" 
 : <func> ( types param-names quot -- func ) [ drop ] prepend H{ } clone H{ } clone 1vector rix-env boa -rot V{ SYM: prim } "list" <val> func boa "func" <val> ;
 
 M: rix-value pprint* [ "RIX:" text [ pprint-rix-value ] with-string-writer text ] [ "ERROR:" text nip class-of name>> text ] recover ;
-CONSTANT: rix-version "0.07.0"
+CONSTANT: rix-version "0.08.0"
 : desc ( val desc -- val ) >>description ;
 >>
 SYMBOL: rix-breakpoints
