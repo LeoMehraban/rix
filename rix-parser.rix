@@ -65,20 +65,20 @@ reset-parsed: fn [parser] [new-parse-result (let parser [new-parser text tokens 
 match-char: fn [parser char] [if (= fst parser char) [new-parse-result (rst parser) char tru] [new-parse-result parser fal fal]];
 terminates-word?: fn [char] [at char
 		  `{{,(chr " ") tru}
-          {,(chr "\0") tru}
-          {,(chr "\n") tru}
-          {,(chr "\r") tru}
-          {,(chr "\t") tru}
-          {,(chr "#") tru}
-          {,(chr "@") tru}
-          {,(chr ":") tru}
-          {,(chr "[") tru}
-          {,(chr ";") tru}
-          {,(chr "{") tru}
-          {,(chr "(") tru}
-          {,(chr "]") tru}
-          {,(chr ")") tru}
-          {,(chr "}") tru}}];
+            {,(chr "\0") tru}
+            {,(chr "\n") tru}
+            {,(chr "\r") tru}
+            {,(chr "\t") tru}
+            {,(chr "#") tru}
+            {,(chr "@") tru}
+            {,(chr ":") tru}
+            {,(chr "[") tru}
+            {,(chr ";") tru}
+            {,(chr "{") tru}
+            {,(chr "(") tru}
+            {,(chr "]") tru}
+            {,(chr ")") tru}
+            {,(chr "}") tru}}];
 
 is-whitespace?: fn [char] [at char
 		  `{{,(chr " ") tru}

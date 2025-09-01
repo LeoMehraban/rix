@@ -405,10 +405,10 @@ MEMO: rix-at ( key hashtable -- value/f ) { hashtable } declare at ; inline
                 ] <builtin> "sets the body of a callable without changing its type" desc
             ]
         }
-        { SYM: str-first [ { TYP: string } { SYM: string } [ dup "string" get-value* first "number" <val> ] <builtin> "gets the first character of a string as a unicode codepoint" desc ] }
-        { SYM: str-len [ { TYP: string } { SYM: string } [ dup "string" get-value* length "number" <val> ] <builtin> "gets the length of a string" desc ] }
+        { SYM: str-first [ { TYP: string } { SYM: string } [ dup "string" get-value first "number" <val> ] <builtin> "gets the first character of a string as a unicode codepoint" desc ] }
+        { SYM: str-len [ { TYP: string } { SYM: string } [ dup "string" get-value length "number" <val> ] <builtin> "gets the length of a string" desc ] }
         { SYM: str-rest
-        [ { TYP: string } { SYM: string } [ dup "string" get-value* rest "string" <val> ] <builtin> "gets the all characters in a string but the first one, and returns them as a string" desc ] }
+        [ { TYP: string } { SYM: string } [ dup "string" get-value rest "string" <val> ] <builtin> "gets the all characters in a string but the first one, and returns them as a string" desc ] }
         { SYM: setparams
             [
                 { TYP: callable TYP: list } { SYM: func SYM: list }

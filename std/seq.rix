@@ -24,9 +24,9 @@ exp list.sconcat: fn [list elt] [cons elt list];
 exp list.econcat: fn [list elt] [revcons elt list];
 exp list.empty: fn [list] [[]];
 
-exp string.fst: fn [str] [str-first];
-exp string.rst: fn [str] [str-rest];
-exp string.length: fn [str] [str-len];
+exp string.fst: fn [str] [str-first str];
+exp string.rst: fn [str] [str-rest str];
+exp string.length: fn [str] [str-len str];
 exp string.sconcat: fn [str elt] [list>string cons elt (string>list str)];
 exp string.econcat: fn [str elt] [list>string revcons elt (string>list str)];
 exp string.empty: fn [list] [""];
@@ -50,7 +50,7 @@ exp iter*: desc
        "recursivly applies 'fun' to 'prev' and the first element of 'list'. 'fun' should return a list [result bool]. if that bool condition is true, calls iter* again with the result as 'prev' and the remainder of the list as 'list'"
        fn [prev list fun]
        [
-		iter** '[,prev tru] list $fun
+		iter** `[,prev tru] list $fun
        ];
 
 exp allpass: desc "runs 'fun' on each element of 'list', stopping when it returns false. if everything passes and the list is over, returns true, otherwise false" fn [list fun]
