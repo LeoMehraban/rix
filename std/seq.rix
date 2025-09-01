@@ -14,8 +14,8 @@ genexp 'sconcat [seq elt] # > seq
 genexp 'econcat [seq elt] # > seq
 genexp 'empty [seq] # > seq
 
-exp revcons: desc "pushes the element 'elt' onto the end of 'lst', returning 'lst'" typreq [typ any typ list] fn [elt lst] '[@lst ,elt];
-exp cons: desc "pushes the element 'elt' onto the beginning of 'lst', returning 'lst'" typreq [typ any typ list] fn [elt lst] '[,elt @lst];
+exp revcons: desc "pushes the element 'elt' onto the end of 'lst', returning 'lst'" typreq [typ any typ list] fn [elt lst] `[@lst ,elt];
+exp cons: desc "pushes the element 'elt' onto the beginning of 'lst', returning 'lst'" typreq [typ any typ list] fn [elt lst] `[,elt @lst];
 
 exp list.fst: fn [list] [first list];
 exp list.rst: fn [list] [rest list];
@@ -108,7 +108,7 @@ exp iter: desc "calls iter* with 'prev' as the first element of 'list' and 'list
 exp before: desc "gets all of the list before index n" fn [n list]
 	[
 		iter* (empty list) list
-		fn [prev cur] [if (< (- length prev 1) (- n 1)) ['[,(econcat prev cur) tru]] ['[,prev fal]]]
+		fn [prev cur] [if (< (- length prev 1) (- n 1)) [`[,(econcat prev cur) tru]] [`[,prev fal]]]
 	];
 
 exp but-last: desc "gets everything before the last element of a seq" fn [list] [before (- length list 1) list];

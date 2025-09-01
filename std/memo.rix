@@ -4,9 +4,9 @@ exp memoize:
     desc "creates a memoized function with params and a body. memoized functions save their results in a hashtable to be looked up if the function is called with the same params again" 
     mac [params body]
     [
-        let '{key ,(quot '[@(map unlock params fn [x] [uquot $x]) ,(unlock body)])}
+        let `{key ,(qquot `[@(map unlock params fn [x] [uquot $x]) ,(unlock body)])}
         [
-            '[
+            `[
                 cloex [memo-hash] consfn ,(unlock params)
                 [
                     if (at ,$key memo-hash) 
@@ -14,7 +14,7 @@ exp memoize:
                         at ,$key memo-hash
                     ] 
                     [
-                        let ,(quot '{res ,(uquot '(let {} ,(unlock body)))})
+                        let ,(qquot `{res ,(uquot `(let {} ,(unlock body)))})
                         [
                             modf 'memo-hash (setat ,$key $res memo-hash)
                             $res

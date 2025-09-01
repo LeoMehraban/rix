@@ -4,13 +4,13 @@ USING: kernel generic parser make assocs command-line ranges literals tools.cont
 ERROR: lexer-error lexer msg ;
 TUPLE: rix-lexer str pos ;
 ! ...before after...
-M: lexer-error summary 
-    [ 
-        lexer>> [ str>> ] [ pos>> ] bi cut [ dup length 5 > [ 5 tail* "..." prepend ] when ] 
-        [ dup length 6 > [ 6 head "..." append ] when ] bi* append 
+M: lexer-error summary
+    [
+        lexer>> [ str>> ] [ pos>> ] bi cut [ dup length 5 > [ 5 tail* "..." prepend ] when ]
+        [ dup length 6 > [ 6 head "..." append ] when ] bi* append
     ] [ msg>> ": " append ] bi prepend ;
 ! M: lexer-error pprint* summary text ;
-CONSTANT: keywords { "if" "let" "fn" "consfn" "mac" "consmac" "quot" "uquot" "+" "-" "*" "/" }
+CONSTANT: keywords { "if" "let" "fn" "consfn" "mac" "consmac" "quot" "uquot" "qquot" "+" "-" "*" "/" }
 <PRIVATE
 DEFER: lex-val
 DEFER: lex-until-semi
@@ -21,10 +21,11 @@ DEFER: lex-until-semi
 : valid-length? ( lexer -- lexer ? ) dup [ str>> length ] [ pos>> 1 + ] bi >= ;
 : ?lexer-next ( lexer -- lexer char ? ) dup [ current ] [ [ 1 + ] change-pos ] bi [ pos>> ] [ str>> length ] bi < ;
 : match-and-advance ( lexer char -- lexer matched? ) over valid-length? nip [ over current = [ [ lexer-next drop ] when ] keep ] dwhen% ;
+: expect ( lexer char -- lexer ) [ match-and-advance ] keep swap [ drop ] [ "Expected '" swap suffix "' but got '" append over current suffix "'." append lexer-error ] if ;
 : reset-if ( lexer quot: ( ..a lexer -- ..b lexer parsed? ) -- ..b lexer parsed? ) over clone [ call swap ] dip [ ? ] keepdd ; inline
 : skip-whitespace ( lexer -- lexer ) valid-length? [ [ dup current blank? [ lexer-next ] when% ] loop ] when ;
 : skip-non-newline-whitespace ( lexer -- lexer ) valid-length? [ [ dup current [ blank? ] [ CHAR: \n = not ] bi and [ lexer-next ] when% ] loop ] when ;
-: valid-char? ( char -- ? ) 
+: valid-char? ( char -- ? )
     [ { [ CHAR: ( eq? ] [ CHAR: ) eq? ] [ CHAR: { eq? ] [ CHAR: } eq? ]  [ CHAR: [ eq? ] [ CHAR: ] eq? ] [ CHAR: ; eq? ] [ CHAR: @ eq? ] [ CHAR: $ eq? ] [ CHAR: " eq? ] } cleave ] output>array [  ] any? not ;
 : lex-comment ( lexer -- lexer ) CHAR: # match-and-advance [ [ valid-length? [ dup current CHAR: \n = not [ lexer-next ] when% ] when% ] loop ] when ;
 : lex-comment? ( lexer -- lexer ? ) CHAR: # match-and-advance [ [ valid-length? [ dup current CHAR: \n = not [ lexer-next ] when% ] when% ] loop t ] when% ;
@@ -36,22 +37,33 @@ DEFER: lex-until-semi
 : lex-semi ( lexer -- lexer semi/f ) CHAR: ; match-and-advance [ t "semicolon" <val> ] when% ;
 : lex-dec ( lexer -- lexer dec/f ) [ lex-word [ unclip-last CHAR: : = [ swap lex-until-semi swapd rix-decl boa "dec" <val> ] dwhen% ] when*% ] reset-if ;
 : lex-list ( lexer -- lexer list/f ) 91 match-and-advance [ V{  } clone swap [ skip-useless 93 match-and-advance not ] [ lex-val swapd suffix! swap ] while swap "list" <val> ] when% ;
-: lex-hash ( lexer -- lexer hash/f ) 
-    CHAR: { match-and-advance 
-    [ V{  } clone swap [ skip-useless CHAR: } match-and-advance not ] [ lex-val swapd suffix! swap ] while swap seq-to-pairs parse-hashtable "hash" <val> ] when% ;
-: lex-symbol ( lexer -- lexer symbol/f ) 
-    lex-word 
-    [ 
-        dup [ "tru" = ] [ "fal" = ] bi or 
-        [ "tru" = "bool" <val> ] 
-        [ 
-            dup "nil" = 
+
+: lex-hash ( lexer -- lexer hash/f )
+    CHAR: { match-and-advance
+    [
+        H{ } clone
+        [
+            swap skip-useless CHAR: } match-and-advance
+            [ swap f ]
+            [
+                skip-useless CHAR: { expect lex-val [ lex-val ] dip roll [ set-at ] keep [ skip-useless CHAR: } expect ] dip t
+            ] if
+        ] loop "hash" <val>
+    ] when% ;
+: lex-symbol ( lexer -- lexer symbol/f )
+    lex-word
+    [
+        dup [ "tru" = ] [ "fal" = ] bi or
+        [ "tru" = "bool" <val> ]
+        [
+            dup "nil" =
             [ drop f "nil" <val> ]
-            [ dup keywords index [ t swap <val> ] [ "symbol" <val> ] if ] if 
-        ] if 
+            [ dup keywords index [ t swap <val> ] [ "symbol" <val> ] if ] if
+        ] if
     ] when*%
     ;
 : lex-quote ( lexer -- lexer quote/f ) CHAR: ' match-and-advance [ lex-val "quote" <val> ] when% ;
+: lex-quasiquote ( lexer -- lexer quote/f ) CHAR: ` match-and-advance [ lex-val "quasiquote" <val> ] when% ;
 : lex-unquote ( lexer -- lexer unquote/f ) CHAR: , match-and-advance [ lex-val "unquote" <val> ] when% ;
 : lex-splice ( lexer -- lexer splice/f ) CHAR: @ match-and-advance [ lex-val "splice" <val> ] when% ;
 : char-or-escape ( lexer -- lexer char )
@@ -65,9 +77,10 @@ DEFER: lex-until-semi
         ] with-string-writer "string" <val>
     ] when% ;
 
-: lex-val ( lexer -- lexer val ) 
+: lex-val ( lexer -- lexer val )
     skip-useless
     lex-quote
+    [ lex-quasiquote ] unless*
     [ lex-unquote ] unless*
     [ lex-splice ] unless*
     [ lex-number ] unless*
@@ -85,10 +98,11 @@ DEFER: lex-until-semi
     [ "Invalid expression" lexer-error ] unless*
     ;
 ! pos lexer
-: lex-until-semi ( lexer -- lexer expr ) 
+: lex-until-semi ( lexer -- lexer expr )
     [ pos>> ] keep V{ } clone swap [
         skip-useless
         lex-quote
+        [ lex-quasiquote ] unless*
         [ lex-unquote ] unless*
         [ lex-splice ] unless*
         [ lex-number ] unless*

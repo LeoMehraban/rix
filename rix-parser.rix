@@ -32,17 +32,17 @@ max: fn [x y] [if (< x y) [y] [x]];
 
 exp create-parser: fn [text] [new-parser (econcat text chr "\0") [] 0];
 
-<>: typreq [typ string typ string] fn [s1 s2] [list>string '[@(string>list s1) @(string>list s2)]];
+<>: typreq [typ string typ string] fn [s1 s2] [list>string `[@(string>list s1) @(string>list s2)]];
 
-chr>string: typreq [typ number] fn [char] [list>string '[,char]];
+chr>string: typreq [typ number] fn [char] [list>string `[,char]];
 # potato
 #^      ^
 # start = 0
 # end = 6
 # 
-between: fn [start end seq] [let '{cleaved-seq ,(after - start 1 seq)} [before (- end start) cleaved-seq]];
+between: fn [start end seq] [let `{{cleaved-seq ,(after - start 1 seq)}} [before (- end start) cleaved-seq]];
 <next-iter>: fn [start func] [if (fst rst start) [<next-iter> (func fst start) $func] [fst start]];
-next-iter: fn [start func] [<next-iter> '[,start tru] $func];
+next-iter: fn [start func] [<next-iter> `[,start tru] $func];
 cleaved: fn [parser old-ind] [between old-ind (at 'ind parser) (at 'text parser)];
 save-parsed: fn [parser old-ind process-func] 
             [
@@ -52,7 +52,7 @@ save-parsed: fn [parser old-ind process-func]
                     [
                         new-parser 
                         (<> (before old-ind text) (after - ind 1 text)) 
-                        '[@tokens ,(process-func cleaved parser old-ind)] 
+                        `[@tokens ,(process-func cleaved parser old-ind)] 
                         old-ind
                     ]
                 ) 
@@ -64,30 +64,30 @@ reset-parsed: fn [parser] [new-parse-result (let parser [new-parser text tokens 
 
 match-char: fn [parser char] [if (= fst parser char) [new-parse-result (rst parser) char tru] [new-parse-result parser fal fal]];
 terminates-word?: fn [char] [at char
-		  '{,(chr " ") tru
-		  ,(chr "\0") tru
-		  ,(chr "\n") tru
-		  ,(chr "\r") tru
-		  ,(chr "\t") tru
-		  ,(chr "#") tru
-		  ,(chr "@") tru
-		  ,(chr ":") tru
-		  ,(chr "[") tru
-		  ,(chr ";") tru
-		  ,(chr "{") tru
-		  ,(chr "(") tru
-		  ,(chr "]") tru
-		  ,(chr ")") tru
-		  ,(chr "}") tru}];
+		  `{{,(chr " ") tru}
+          {,(chr "\0") tru}
+          {,(chr "\n") tru}
+          {,(chr "\r") tru}
+          {,(chr "\t") tru}
+          {,(chr "#") tru}
+          {,(chr "@") tru}
+          {,(chr ":") tru}
+          {,(chr "[") tru}
+          {,(chr ";") tru}
+          {,(chr "{") tru}
+          {,(chr "(") tru}
+          {,(chr "]") tru}
+          {,(chr ")") tru}
+          {,(chr "}") tru}}];
 
 is-whitespace?: fn [char] [at char
-		  '{,(chr " ") tru
-		  ,(chr "\n") tru
-		  ,(chr "\r") tru
-		  ,(chr "\t") tru
+		  `{{,(chr " ") tru}
+            {,(chr "\n") tru}
+            {,(chr "\r") tru}
+            {,(chr "\t") tru}
 		 }];
 
-parse-comment: fn [parser] [iter* parser parser fn [prev char] '[,(if (= char chr "\n") [parser] [rst parser]) ,(not = char chr "\n")]];
+parse-comment: fn [parser] [iter* parser parser fn [prev char] `[,(if (= char chr "\n") [parser] [rst parser]) ,(not = char chr "\n")]];
 
 skip-whitespace:
 	fn [parser] [
@@ -95,11 +95,11 @@ skip-whitespace:
             iter* parser parser 
             fn [p2 char] [
                 if (is-whitespace? char) 
-                ['[,(rst p2) tru]] 
+                [`[,(rst p2) tru]] 
                 [
                     if (= char chr "#") 
-                    ['[,(parse-comment rst p2) tru]] 
-                    ['[,p2 fal]]
+                    [`[,(parse-comment rst p2) tru]] 
+                    [`[,p2 fal]]
                 ]
             ]
         )
@@ -114,14 +114,14 @@ skip-whitespace:
 parse-word: fn [parser]
 	    [
 		    let
-	        '{res ,(iter* parser parser fn [prev chr] '[,(if (not terminates-word? chr) [rst prev] [prev]) ,(not terminates-word? chr)])}
+	        `{{res ,(iter* parser parser fn [prev chr] `[,(if (not terminates-word? chr) [rst prev] [prev]) ,(not terminates-word? chr)])}}
 		    [
                 new-parse-result res (at 'result save-parsed res (at 'ind parser) fn [_] [_]) (< (at 'ind parser) (at 'ind res))
             ]
 	    ];
 
 parse-number: fn [parser] [
-            let '{wordres ,(parse-word parser)}
+            let `{{wordres ,(parse-word parser)}}
 	        [
                 if (and (at 'successful? wordres) (string>number at 'result wordres)) 
                 [save-parsed (at 'parser wordres) (at 'ind parser) $string>number] 
@@ -131,7 +131,7 @@ parse-number: fn [parser] [
 
 parse-symbol: fn [parser] 
 	[
-		let '{wordres ,(parse-word parser)} 
+		let `{{wordres ,(parse-word parser)}} 
 		[
 			if (at 'successful? wordres) [save-parsed (at 'parser wordres) (at 'ind parser) fn [str] [ucast str typ symbol]] [new-parse-result parser fal fal]
 		]
@@ -139,44 +139,44 @@ parse-symbol: fn [parser]
 
 exp parse-list: fn [parser]
 	    [
-		let '{res ,(match-char parser chr "[")}
+		let `{{res ,(match-char parser chr "[")}}
 		[
 			if (at 'successful? res)
 			[
 			    let
-			    '{lst-res
-					    ,(next-iter '[,parser []]
+			    `{{lst-res
+					    ,(next-iter `[,parser []]
 						    fn [lst] [
                                 if (parser-done? parser) 
                                 [
                                     err "out of text but list is unclosed"
                                 ] 
                                 [
-                                    let '{prev ,lst cur ,(fst fst lst)} 
+                                    let `{{prev ,lst} {cur ,(fst fst lst)}} 
                                     [
                                         # wrt "prev: " pprn prev
                                         # wrt "cur: " pprn (chr>string cur)
                                         if (= cur chr "]")
-						                ['[[,(rst fst prev) [@(fst rst prev)]] fal]]
+						                [`[[,(rst fst prev) [@(fst rst prev)]] fal]]
 						                [
-						   	                let '{parseres ,(parse-next (rst fst prev))} 
-							                ['[[,(let (at 'parser parseres) [new-parser text but-last tokens ind]) [@(fst rst prev) ,(at 'result parseres)]] tru]]
+						   	                let `{{parseres ,(parse-next (rst fst prev))}} 
+							                [`[[,(let (at 'parser parseres) [new-parser text but-last tokens ind]) [@(fst rst prev) ,(at 'result parseres)]] tru]]
 						                ]
                                     ]
                                 ]
 						    ]
 					    )
-				}
+                }}
 			    [new-parse-result (fst lst-res) (fst rst lst-res) tru]
 			]
 			[new-parse-result parser fal fal]
 		]
 	    ];
-first-successful: vari [parser funcs] [iter* fal funcs fn [_ func] [let '{res ,(func parser)} [if (at 'successful? res) ['[,res fal]] [[fal tru]]]]];
+first-successful: vari [parser funcs] [iter* fal funcs fn [_ func] [let `{{res ,(func parser)}} [if (at 'successful? res) [`[,res fal]] [[fal tru]]]]];
 
 parse-next: fn [parser]
 	    [
-		    let '{
+		    let `{{
                 res ,(
 		            first-successful
 		            (skip-whitespace parser)
@@ -184,7 +184,7 @@ parse-next: fn [parser]
 		            fn [p] [parse-list p]
 		            fn [p] [parse-symbol p];
                 )
-            }
+            }}
 		    [if (res) [res] [err "Invalid expression"]]
 	    ];
 prn "test 1"
@@ -209,7 +209,7 @@ assert= (evl at 'result parse-symbol (create-parser "foo")) "potato"
 prn "passed test 5"
 
 prn "test 6"
-assert= (at 'result parse-list (create-parser "[+ 1 1]")) '[,(ucast "+" typ symbol) 1 1] # need this because the real rix parser substitutes the symbol + for a value with a special type
+assert= (at 'result parse-list (create-parser "[+ 1 1]")) `[,(ucast "+" typ symbol) 1 1] # need this because the real rix parser substitutes the symbol + for a value with a special type
 prn "passed test 6"
 
 prn "test 7"
