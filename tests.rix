@@ -246,4 +246,22 @@ foobarbaz2: "good";
 assert= (evl a-macro) "bad"
 prn "passed test 47"
 
+prn "test 48: function params must be symbol lists"
+assert= (try [fn ["hello"] []] fn [_ err] [$err]) (new-err "[(typ string)] != [(typ symbol)]")
+prn "passed test 48"
+
+prn "test 49: vectors"
+a: vec [1 2 3];
+pop a
+assert= a (vec [1 2])
+prn "passed test 49"
+
+prn "test 50: boxes"
+a: box "Hello, World";
+b: unbox a;
+update a "Goodbye, World!"
+c: unbox a;
+assert= (not = b c) tru
+prn "passed test 50"
+
 prn "all tests passed!"
