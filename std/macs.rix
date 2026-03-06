@@ -22,15 +22,16 @@ exp tvarimac: desc "equal to typreq [types] varimac [params] [body];" umac [type
 symbol>list: fn [sym] [cast (ucast $sym typ string) typ list];
 list>symbol: fn [list] [ucast (cast list typ string) typ symbol];
 add-new-prefix: fn [symbol] [cast `[@(cast "new-" typ list) @(cast $symbol typ list)] typ symbol];
-params-to-hash: fn [params] [reduce* { } params fn [hash param] [setat $param (uquot res $param) hash]];
+params-to-hash: fn [params] [reduce* newhash params fn [hash param] [setat $param (uquot res $param) hash]];
 
 exp struct: desc "defines a struct type with fields 'params' and name 'name'. does not define getters or setters" typreq [typ symbol typ list] mac [name params]
-    	    `[
+    	    [`[
 		        set ,(quot add-new-prefix unlock name) fn ,(unlock params) ,`[ucast ,(qquot params-to-hash unlock params) typ ,(unlock name)]
-    	    ];
+    	    ]];
 # TODO: write a better description
 exp pass: desc "passes parameters into a function. the parameters are assumed to exist, so you can pass local variables directly into a function" typreq [typ func] fn [func]
     [
 	    tapp `[,$func @(fparams $func)]
     ];
+
 

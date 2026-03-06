@@ -24,6 +24,13 @@ exp list.sconcat: fn [list elt] [cons elt list];
 exp list.econcat: fn [list elt] [revcons elt list];
 exp list.empty: fn [list] [[]];
 
+exp vec.fst: fn [vector] [first vec>list vector];
+exp vec.rst: fn [vector] [vec rest vec>list vector];
+exp vec.length: fn [vector] [len vec>list vector];
+exp vec.sconcat: fn [vector elt] [append vector elt];
+exp vec.econcat: fn [vector elt] [prepend vector elt];
+exp vec.empty: fn [vector] [vec []];
+
 exp string.fst: fn [str] [str-first str];
 exp string.rst: fn [str] [str-rest str];
 exp string.length: fn [str] [str-len str];

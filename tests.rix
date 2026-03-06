@@ -264,4 +264,10 @@ c: unbox a;
 assert= (not = b c) tru
 prn "passed test 50"
 
+prn "test 51: insert-nth"
+a: vec [1 2 3];
+insert-nth a 1 5
+assert= a (vec [1 5 2 3])
+prn "passed test 51"
+
 prn "all tests passed!"

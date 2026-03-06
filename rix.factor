@@ -1,6 +1,6 @@
 ! Copyright (C) 2024 Your name.
 ! See https://factorcode.org/license.txt for BSD license
-USING: kernel generic parser make assocs command-line ranges literals tools.continuations namespaces serialize arrays environment lexer system prettyprint splitting classes.tuple colors hashtables continuations sequences.deep prettyprint.custom prettyprint.sections  words classes.predicate quotations accessors vectors classes.parser math math.functions sequences combinators classes combinators.smart unicode strings io io.styles io.files io.encodings.utf8 io.streams.string math.parser combinators.short-circuit strings.parser summary io.encodings.ascii io.encodings.utf16 io.pathnames io.directories rix.lexer rix.common tools.time sorting kernel.private delegate delegate.protocols ;
+USING: kernel generic parser make assocs command-line growable ranges literals tools.continuations namespaces serialize arrays environment lexer system prettyprint splitting classes.tuple colors hashtables continuations sequences.deep prettyprint.custom prettyprint.sections  words classes.predicate quotations accessors vectors classes.parser math math.functions sequences combinators classes combinators.smart unicode strings io io.styles io.files io.encodings.utf8 io.streams.string math.parser combinators.short-circuit strings.parser summary io.encodings.ascii io.encodings.utf16 io.pathnames io.directories rix.lexer rix.common tools.time sorting kernel.private delegate delegate.protocols sequences.private ;
 IN: rix
 
 DEFER: rix-eval
@@ -37,10 +37,16 @@ SYNTAX: GENR: scan-token dup [ "symbol" <val> ] bi@ ";" parse-tokens [ "symbol" 
 : <func> ( types param-names quot -- func ) [ drop ] prepend H{ } clone H{ } clone 1vector rix-env boa -rot V{ SYM: prim } "list" <val> func boa "func" <val> ;
 
 M: rix-value pprint* [ "RIX:" text [ pprint-rix-value ] with-string-writer text ] [ "ERROR:" text nip class-of name>> text ] recover ;
-CONSTANT: rix-version "0.08.0"
+CONSTANT: rix-version "0.09.0"
 : desc ( val desc -- val ) >>description ;
 >>
 SYMBOL: rix-breakpoints
+
+: insert-nth! ( elt n seq -- )
+    dupd [ length [ swap - 1 + ] keep ] keep ensure [
+        [ [ swap - dup 1 - ] curry ] dip [ move-unsafe ] curry
+        compose each-integer
+    ] keep set-nth-unsafe ;
 
 INSTANCE: rix-env sequence
 M: rix-env length seq>> length ;
@@ -370,8 +376,6 @@ M: func clone { [ types>> ] [ env>> env-deep-clone ] [ param-names>> ] [ quot>> 
 
 : closure? ( val -- ? ) type>> { "func" "variadic" "macro" "variadic-macro" } [ = ] with any? ;
 
-MEMO: rix-at ( key hashtable -- value/f ) { hashtable } declare at ; inline
-
 TUPLE: rix-box { value rix-value } ;
 : global-env ( -- env )
     H{
@@ -410,12 +414,27 @@ TUPLE: rix-box { value rix-value } ;
                 [ dup "list" get-value >vector "vec" <val> ] <builtin> "creates a vector from a list. vectors are like lists, but they don't get copied when you add to them" desc
             ]
         }
+        { SYM: newhash [ { } { } [ H{ } clone "hash" <val> ] <builtin> "creates a new hashtable at runtime" desc ] }
+        { SYM: clone [ { TYP: any } { SYM: val }
+            [ dup "val" get-value* [ clone ] change-value ] <builtin> "clones a mutable value, allowing you to modify it without changing the original" desc ] }
         { SYM: list>vec [ SYM: vec "alias for 'vec'" desc ] }
         { SYM: vec>list [ { TYP: vec } { SYM: vec } [ dup "vec" get-value >array "list" <val> ] <builtin> "turns a vector into a list" desc ] }
         { SYM: append
             [
                 { TYP: vec TYP: any } { SYM: vec SYM: value }
                 [ dup [ "vec" get-value ] [ "value" get-value* ] bi suffix! "vec" <val> ] <builtin> "adds an item to the end of a vector" desc
+            ]
+        }
+        { SYM: prepend
+            [
+                { TYP: vec TYP: any } { SYM: vec SYM: value }
+                [ dup [ "vec" get-value ] [ "value" get-value* ] bi 0 rot insert-nth! "vec" <val> ] <builtin> "adds an item to the beginning of a vector" desc
+            ]
+        }
+        { SYM: insert-nth
+            [
+                { TYP: vec TYP: number TYP: any } { SYM: vec SYM: n SYM: value }
+                [ dup [ "value" get-value* ] [ "n" get-value ] [ "vec" get-value ] tri [ insert-nth! ] keep "vec" <val> ] <builtin> "inserts a value at a specific index in a vector" desc
             ]
         }
         { SYM: pop
@@ -448,7 +467,7 @@ TUPLE: rix-box { value rix-value } ;
         { SYM: fparams [ { TYP: callable } { SYM: func } [ dup "func" get-value param-names>> "list" <val> ] <builtin> "gets the params of a function" desc ] }
         { SYM: list>string [ { TYP: list } { SYM: list } [ dup "list" get-value [ value>> ] "" map-as "string" <val> ] <builtin> "converts a list to a string" desc ] }
         { SYM: at [ { TYP: any TYP: hashstruct } { SYM: key SYM: hash }
-            [ dup [ "key" get-value* ] [ "hash" get-value ] bi rix-at [ f "bool" <val> ] unless* ] <builtin> "gets the value at key stored within 'hash'" desc ] }
+            [ dup [ "key" get-value* ] [ "hash" get-value ] bi at [ f "bool" <val> ] unless* ] <builtin> "gets the value at key stored within 'hash'" desc ] }
         { SYM: not [ { TYP: any } { SYM: x } [ dup "x" get-value not "bool" <val> ] <builtin> "preforms 'not' on a bool" desc ] }
         { SYM: inl [ { TYP: list TYP: any } { SYM: params SYM: body } [ t make-inl push-token ] <builtin-macro> "creates a function with params and a body whose results may depend on the surrounding enviroment" desc ] }
         { SYM: fn [ t "fn" <val> "creates a function with params and a body" desc ] }
@@ -491,9 +510,10 @@ TUPLE: rix-box { value rix-value } ;
                         <builtin> "tests if this type implements a generic" desc ] }
         { SYM: evl [ { TYP: any } { SYM: val } [ dup "val" get-value* eval-one ] <builtin> "evaluates 'val'" desc ] }
         { SYM: setat [ { TYP: any TYP: any TYP: hashstruct } { SYM: key SYM: value SYM: hash }
-            [ dup [ "value" get-value* ] [ "key" get-value* ] [ "hash" get-value clone ] tri [ set-at ] keep "hash" <val> ] <builtin>
-                       "sets 'value' at 'key' within 'hash'" desc ] }
+            [ dup [ "value" get-value* ] [ "key" get-value* ] [ "hash" get-value ] tri [ set-at ] keep "hash" <val> ] <builtin>
+                       "sets 'value' at 'key' within 'hash', mutating hash" desc ] }
         { SYM: tpop [ { } { } [ pop-token ] <builtin> "pops from the tokenstack. should mainly be used with macros, as using with functions or inline functions may provide unexpected results" desc ] }
+        { SYM: tpeek [ { } { } [ peek-token ] <builtin> "returns the top of the tokenstack. should mainly be used with macros, as using with functions or inlines may provide unexpected results" desc ] }
         { SYM: tpush [ { TYP: any } { SYM: val } [ dup "val" get-value* push-token f ] <builtin> "pushes to the tokenstack" desc ] }
         { SYM: tapp [ { TYP: list } { SYM: val } [ dup "val" get-value* push-tokens f ] <builtin> "concatinates a list onto the tokenstack" desc ] }
         { SYM: args [ { } { } [ command-line get ] <builtin> "gets command line arguments. the first element is the name of the rix file when run with 'rix file.rix'" desc ] }
@@ -1040,16 +1060,26 @@ RIX-TYPE: rix-dec
 M: rix-dec pprint-rix-value value>> [ symbol>> write ":" write ] [ expr>> [ " " write pprint-rix-value ] each ] bi  ;
 M: rix-dec evaluates-to-something? drop t ;
 
+<PRIVATE
+: print-typreq ( fn -- fn )
+    dup types>> [ TYP: any = not ] any?
+    [
+        "typreq " write
+        dup types>> "list" <val> pprint-rix-value
+        " " write
+    ] when ;
+PRIVATE>
+
 ! inl [x y] [+ x y]
 RIX-TYPE: rix-inl
-M: rix-inl pprint-rix-value value>> "inl " write [ param-names>> "list" <val> pprint-rix-value ]
+M: rix-inl pprint-rix-value value>> print-typreq "inl " write [ param-names>> "list" <val> pprint-rix-value ]
     [ body>> dup V{ SYM: prim } "list" <val> = not [ " " write dup sequence? [ 1array ] unless "list" <val> pprint-rix-value ] [ drop ] if ] bi  ;
 M: rix-inl evaluates-to-something? drop t ;
 
 
 ! fn [x y] [+ x y]
 RIX-TYPE: rix-func
-M: rix-func pprint-rix-value value>> "fn " write [ param-names>> "list" <val> pprint-rix-value ]
+M: rix-func pprint-rix-value value>> print-typreq "fn " write [ param-names>> "list" <val> pprint-rix-value ]
     [ body>> dup V{ SYM: prim } "list" <val> = not [ " " write dup sequence? [ 1array ] unless "list" <val> pprint-rix-value ] [ drop ] if ] bi ;
 M: rix-func evaluates-to-something? drop t ;
 
@@ -1059,28 +1089,28 @@ M: rix-vec pprint-rix-value "vec " write value>> "list" <val> pprint-rix-value ;
 
 ! mac [x y] [+ (unlock x) (unlock y)]
 RIX-TYPE: rix-macro
-M: rix-macro pprint-rix-value value>> "mac " write
+M: rix-macro pprint-rix-value value>> print-typreq "mac " write
     [ param-names>> "list" <val> pprint-rix-value ]
     [ body>> dup V{ SYM: prim } "list" <val> = not [ " " write dup sequence? [ 1array ] unless "list" <val> pprint-rix-value ] [ drop ] if ] bi  ;
 M: rix-macro evaluates-to-something? drop t ;
 
 ! vari [x ys] `[,x @ys]
 RIX-TYPE: rix-variadic
-M: rix-variadic pprint-rix-value value>> "vari " write [ param-names>> "list" <val> pprint-rix-value ]
+M: rix-variadic pprint-rix-value value>> print-typreq "vari " write [ param-names>> "list" <val> pprint-rix-value ]
     [ body>> dup V{ SYM: prim } "list" <val> = not [ " " write dup sequence? [ 1array ] unless "list" <val> pprint-rix-value ] [ drop ] if ] bi ;
 M: rix-variadic evaluates-to-something? drop t ;
 
 ! varimac [x ys] `[+ ,x ,(nth ys 0)]
 RIX-TYPE: rix-variadic-macro
 M: rix-variadic-macro pprint-rix-value
-    value>> "varimac " write [ param-names>> "list" <val> pprint-rix-value  ]
+    value>> print-typreq "varimac " write [ param-names>> "list" <val> pprint-rix-value  ]
     [ body>> dup V{ SYM: prim } "list" <val> = not [ " " write dup sequence? [ 1array ] unless "list" <val> pprint-rix-value ] [ drop ] if ] bi  ;
 M: rix-variadic-macro evaluates-to-something? drop t ;
 
 
 ! varinl [x ys] `[,x @ys]
 RIX-TYPE: rix-inline-variadic
-M: rix-inline-variadic pprint-rix-value value>> "varinl " write [ param-names>> "list" <val> pprint-rix-value ]
+M: rix-inline-variadic pprint-rix-value value>> print-typreq "varinl " write [ param-names>> "list" <val> pprint-rix-value ]
     [ body>> dup V{ SYM: prim } "list" <val> = not [ " " write dup sequence? [ 1array ] unless "list" <val> pprint-rix-value ] [ drop ] if ] bi  ;
 M: rix-inline-variadic evaluates-to-something? drop t ;
 

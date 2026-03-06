@@ -120,7 +120,7 @@ parse-word: fn [parser]
             ]
 	    ];
 
-parse-number: fn [parser] [
+exp parse-number: fn [parser] [
             let `{{wordres ,(parse-word parser)}}
 	        [
                 if (and (at 'successful? wordres) (string>number at 'result wordres)) 
@@ -129,7 +129,7 @@ parse-number: fn [parser] [
             ]
       ];
 
-parse-symbol: fn [parser] 
+exp parse-symbol: fn [parser] 
 	[
 		let `{{wordres ,(parse-word parser)}} 
 		[

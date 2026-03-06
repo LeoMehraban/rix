@@ -80,43 +80,69 @@ foo: 5;
 # prints 9
 prn test-function3 4
 
+# names of things are values as well, and they can be accessed with 'symbolname syntax
+# prints test-function3
+prn 'test-function3
+# the ' prefix is called a "quote" operator. they can be put on basically anything you'd like, and they stop the evaluation of the underlying value, allowing you to access it
+
 # what if you want to get the value of a function without evaluating it? you can use $funcname syntax
 # what this actually does is get the value associated with the name "test-function3" and stop evaluating it there
 # prints fn [x] [+ x foo]
 prn $test-function3
 
-# names of things are values as well, and they can be accessed with 'symbolname syntax
-# prints test-function3
-prn 'test-function3
-
-# the ' prefix is called a "quote" operator. they can be put on basically anything you'd like
-# when you put them on lists, you can do some fun things
+# the ` prefix is called the "quasiquote" operator. Here's how it works
 # prints [1 2 5]
-prn '[1 2 ,foo]
+foo: 5;
+prn `[1 2 ,foo]
 
-# that was the unquote operator, and it's used to evaluate things within lists
+# that was the unquote operator, and it's used to evaluate things within quasiquoted lists
 # prints [1 2 6]
-prn '[1 2 ,(+ foo 1)]
+prn `[1 2 ,(+ foo 1)]
 
 # you can also use the "splice" operator to do a similar thing, but if the expression you're evaluating returns a list, it's spliced into the parent list
-bar: '[1 2 ,foo];
-
 # prints [1 2 1 2 5]
-prn '[1 2 @bar]
+bar: `[1 2 ,foo];
+prn `[1 2 @bar]
 
 # prints [1 2 [1 2 5]]
-prn '[1 2 ,bar]
+prn `[1 2 ,bar]
+
+# macros are functions that don't evaluate their input parameters
+test-macro: mac [x] [prn (unlock x)];
+# since macros often deal with inputs that can be accidentally evaluated, the inputs to a macro are "locked" by default, meaning that they cannot be evaluated
+# unless you use the builtin 'unlock' function to unlock them
+
+# prints 5
+test-macro 5
+
+# prints (+ 1 4) (instead of 5, since macros don't evaluate their inputs)
+test-macro (+ 1 4)
+
+# prints foo
+test-macro foo
+
+# macros are also unique in that their return values are appended onto the token list
+test-macro2: mac [a] [`[,(unlock a) ,(unlock a)]];
+# prints 6
+prn (+ test-macro2 3)
+
+# mac is itself a macro, and if its second input isn't a list, then it will be evaluated and then returned. This means you can drop the outer set of [] before test-macro2's definition
+test-macro2: mac [a] `[,(unlock a) ,(unlock a)];
 
 # hashtables are written like this. like lists, they can have any type for their keys and values
+{{key1 "value"} {"key2" [value1 value2]}}
 
-{key1 "value" "key2" [value1 value2]}
+# they can also use quasiquotes and unquotes
+hashtest: `{{key1 ,foo} {key2 ,bar}};
+# prints {{key1 5} {key2 [1 2 5]}}
+prn hashtest
 
-# they can also use quotes and unquotes
-# prints {key1 5 key2 [1 2 5]}
-prn '{key1 ,foo key2 ,bar}
+# you can access values in a hashtable like so
+# prints [1 2 5]
+prn (at 'key2 hashtest)
 
 # let is a function that takes in a hashtable and a list, and runs the code in that list with key-value pairs in the hashtable stored as variables
-let {potato 1 foo 3} 
+let {{potato 1} {foo 3}} 
 [
     # prints [1 2 5 4]
     prn '[@bar ,(+ potato foo)]
@@ -142,11 +168,64 @@ if (> foo 5)
     prn "goodbye"
 ]
 
+# if is also an expression
+# prints 1
+prn (if (> foo 4) [1] [2]) 
+
+# let's include the library macs
+incl macs
+# libraries are included with the macro incl
+# macs defines some useful macros, as well as other things that aren't quite macros, but are similarly useful
+
+# here's the function pass
+foo-function: fn [x y z] [+ x (- y z)];
+# prints 6
+prn (foo-function 5 4 3)
+# prints 6
+x: 5;
+y: 4;
+z: 3;
+prn (pass $foo-function)
+
+# let's look at the definition of pass. it contains plenty of stuff we haven't seen yet
+exp pass: desc "passes parameters into a function. the parameters are assumed to exist, so you can pass local variables directly into a function" typreq [typ func] fn [func]
+    [
+	    tapp `[,$func @(fparams $func)]
+    ];
+# exp exports a definition, meaning that when you use 'incl' on this file, you get access to this definition
+# desc adds a description to a value. you can use the builtin 'pdesc' function to print the description of a value. This is useful for when you don't know what a function does
+# typreq is a function that takes in a list of the types of a function's parameters, and checks if the function is called with those types at runtime
+# types are defined with 'typ <typename>'. 'typ func' is the type of a function. 
+# Most types are what you'd expect them to be (you can use gettyp <value> to get the actual type). The special types 'typ any' and 'typ callable' are useful. 'typ any' matches any value,
+# and 'typ callable' matches anything you can call like a function
+# tapp appends the following list to the token list, effectively meaning that it will be evaluated right after pass is done evaluating
+# fparams gets the parameters of a function as a list of symbols.
+
+# to summarize how 'pass' works, it appends a list of tokens to the token list. That list contains the function input, and that function's parameters, concatinated into the main list
+# so, pass $foo-function generates the code foo-function x y z
+
+# prints the description of pass
+pdesc $pass
+
+# prints 'typ func'
+prn (gettyp $pass)
+
+# in the above section, we just redefined the function pass. In order to access the original function imported from macs, we use
+prn (pass@macs $foo-function)
+
+
+
+# struct is a very useful macro found in macs
+# defines a function new-person that takes in a name and age, and produces a value of type "person", which is really just a relabeled hashtable 
+struct person [name age]
+jeff: new-person "Jeff" 32;
+
+# prints 'typ person'
+prn (gettyp jeff)
+# prints 32
+prn (at 'age jeff)
+
 # to explain:
-# modules
 # generics
-# typreq
-# types
 # custom evaluation
-# tokens
 # continuations
